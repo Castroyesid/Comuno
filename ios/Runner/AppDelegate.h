@@ -3,7 +3,17 @@
 #import <Firebase/Firebase.h>
 #import <Fabric/Fabric.h>
 //#import <Crashlytics/Crashlytics.h>
+#import <UserNotifications/UserNotifications.h>
+
 
 @interface AppDelegate : FlutterAppDelegate
+
+- (void)configureUserInteractions;
+
+- (void)enableRemoteNotificationFeatures;
+
+- (void)forwardTokenToServer:devTokenBytes;
+
+- (void)disableRemoteNotificationFeatures;
 
 @end
