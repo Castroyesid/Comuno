@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>135159796599-cf4rho1dd83uuvqspk314j5ndoikbkg5.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.135159796599-cf4rho1dd83uuvqspk314j5ndoikbkg5</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>135159796599-05rb32ra0kkne16sgsdf22g7slo02qv5.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBHbPl_T4wIArZuf6_froPv-n2HR5jTPak</string>
+	<key>GCM_SENDER_ID</key>
+	<string>135159796599</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>org.comuno.comuno</string>
+	<key>PROJECT_ID</key>
+	<string>comuno-up-a1229</string>
+	<key>STORAGE_BUCKET</key>
+	<string>comuno-up-a1229.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:135159796599:ios:fec0d73e9767d0e0724772</string>
+	<key>DATABASE_URL</key>
+	<string>https://comuno-up-a1229.firebaseio.com</string>
+</dict>
+</plist>

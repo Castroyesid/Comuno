@@ -1,0 +1,42 @@
+{
+  "@@last_modified": "2019-06-18T05:24:54.283939",
+  "appTitle": "Comuno",
+  "@appTitle": {
+    "description": "Title for the application",
+    "type": "text",
+    "placeholders": {}
+  },
+  "loginPageWelcomeTo": "Welcome to",
+  "@loginPageWelcomeTo": {
+    "type": "text",
+    "placeholders": {}
+  },
+  "loginPageSignInWithGoogle": "Sign in with Google",
+  "@loginPageSignInWithGoogle": {
+    "type": "text",
+    "placeholders": {}
+  },
+  "loginPageSignInWithTwitter": "Sign in with Twitter",
+  "@loginPageSignInWithTwitter": {
+    "type": "text",
+    "placeholders": {}
+  },
+
+  "homePageFeedMenu": "Feed",
+  "@homePageFeedMenu": {
+    "type": "text",
+    "placeholders": {}
+  },
+
+  "homePageGamesMenu": "Games",
+  "@homePageGamesMenu": {
+    "type": "text",
+    "placeholders": {}
+  },
+
+  "homePageProfileMenu": "Profile",
+  "@homePageProfileMenu": {
+    "type": "text",
+    "placeholders": {}
+  }
+}

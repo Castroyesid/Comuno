@@ -1,0 +1,56 @@
+{
+  "project_info": {
+    "project_number": "135159796599",
+    "firebase_url": "https://comuno-up-a1229.firebaseio.com",
+    "project_id": "comuno-up-a1229",
+    "storage_bucket": "comuno-up-a1229.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:135159796599:android:1e5a483894831569724772",
+        "android_client_info": {
+          "package_name": "org.comuno.comuno"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "135159796599-05rb32ra0kkne16sgsdf22g7slo02qv5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "org.comuno.comuno",
+            "certificate_hash": "6f66f44b73a5865389f8db648701d09016036522"
+          }
+        },
+        {
+          "client_id": "135159796599-vrva3ikhkm6v5061tkcndg85jhkgs3i0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0RXhb0aRucYjZqZLhl_9VedHMoFY-nrM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "135159796599-vrva3ikhkm6v5061tkcndg85jhkgs3i0.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "135159796599-cf4rho1dd83uuvqspk314j5ndoikbkg5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "org.comuno.comuno",
+                "app_store_id": "1481104910"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

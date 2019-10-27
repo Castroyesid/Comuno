@@ -1,0 +1,42 @@
+{
+  "@@last_modified": "2019-06-18T05:24:54.283939",
+  "appTitle": "Comuno",
+  "@appTitle": {
+    "description": "Title for the application",
+    "type": "text",
+    "placeholders": {}
+  },
+  "loginPageWelcomeTo": "Bienvenido a",
+  "@loginPageWelcomeTo": {
+    "type": "text",
+    "placeholders": {}
+  },
+  "loginPageSignInWithGoogle": "Iniciar sesión con Google",
+  "@loginPageSignInWithGoogle": {
+    "type": "text",
+    "placeholders": {}
+  },
+  "loginPageSignInWithTwitter": "Iniciar sesión con Twitter",
+  "@loginPageSignInWithTwitter": {
+    "type": "text",
+    "placeholders": {}
+  },
+
+  "homePageFeedMenu": "Noticias",
+  "@homePageFeedMenu": {
+    "type": "text",
+    "placeholders": {}
+  },
+
+  "homePageGamesMenu": "Juegos",
+  "@homePageGamesMenu": {
+    "type": "text",
+    "placeholders": {}
+  },
+
+  "homePageProfileMenu": "Perfil",
+  "@homePageProfileMenu": {
+    "type": "text",
+    "placeholders": {}
+  }
+}
