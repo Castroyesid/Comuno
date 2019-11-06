@@ -34,6 +34,7 @@ end
 
 target 'Runner' do
   # Flutter Pod
+  use_frameworks!
 
   copied_flutter_dir = File.join(__dir__, 'Flutter')
   copied_framework_path = File.join(copied_flutter_dir, 'Flutter.framework')
@@ -64,7 +65,9 @@ target 'Runner' do
   # Plugin Pods
 #  pod 'Firebase'
   pod 'Fabric'
-#  pod 'Crashlytics'
+#  pod 'TwitterCore'
+#  pod 'TwitterKit'
+  pod 'Crashlytics'
 
   # Prepare symlinks folder. We use symlinks to avoid having Podfile.lock
   # referring to absolute paths on developers' machines.

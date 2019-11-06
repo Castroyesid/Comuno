@@ -2,18 +2,22 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:core';
 
+import 'package:comuno/resources/twitter.dart' as tw;
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_twitter_login/flutter_twitter_login.dart';
 import 'package:comuno/util/strings.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:async';
+//import 'dart:async';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:comuno/models/comment.dart';
 import 'package:comuno/models/like.dart';
 import 'package:comuno/models/message.dart';
 import 'package:comuno/models/post.dart';
 import 'package:comuno/models/user.dart';
+
+String twitterToken;
 
 class FirebaseProvider {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -25,6 +29,7 @@ class FirebaseProvider {
   Like like;
   Message _message;
   Comment comment;
+  String _twitterUsername;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
   StorageReference _storageReference;
   TwitterLogin _twitterLogin = TwitterLogin(
@@ -45,6 +50,7 @@ class FirebaseProvider {
     user = User(
         uid: currentUser.uid,
         email: _isGoogle ? currentUser.email : "no@twitter.com",
+        twitterUsername: _isTwitter ? _twitterUsername : "google",
         displayName: currentUser.displayName,
         photoUrl: currentUser.photoUrl,
         followers: '0',
@@ -128,27 +134,30 @@ class FirebaseProvider {
   }
 
   Future<FirebaseUser> signInTwitter() async {
-    TwitterLoginResult _twitterLoginResult;
-    TwitterSession _currentUserTwitterSession;
-    TwitterLoginStatus _twitterLoginStatus;
+    TwitterLoginResult twitterLoginResult;
+    TwitterSession currentUserTwitterSession;
+    TwitterLoginStatus twitterLoginStatus;
     FirebaseUser user;
 
     try {
-      _twitterLoginResult = await _twitterLogin.authorize();
-      _currentUserTwitterSession = _twitterLoginResult.session;
-      _twitterLoginStatus = _twitterLoginResult.status;
+      twitterLoginResult = await _twitterLogin.authorize();
+      currentUserTwitterSession = twitterLoginResult.session;
+      tw.currentUserTwitterSession = currentUserTwitterSession;
+      twitterLoginStatus = twitterLoginResult.status;
+      _twitterUsername = currentUserTwitterSession.username;
     } catch (e) {
+      print(e);
       print("Error signing in with twitter");
       return null;
     }
 
-    print("twitter status: " + _twitterLoginStatus.toString());
+    print("twitter status: " + twitterLoginStatus.toString());
     print("trying to get credentials");
 
-    if (_twitterLoginStatus == TwitterLoginStatus.loggedIn) {
+    if (twitterLoginStatus == TwitterLoginStatus.loggedIn) {
       final AuthCredential twitterCredential = TwitterAuthProvider.getCredential(
-          authToken: _currentUserTwitterSession?.token ?? '',
-          authTokenSecret: _currentUserTwitterSession?.secret ?? ''
+          authToken: currentUserTwitterSession?.token ?? '',
+          authTokenSecret: currentUserTwitterSession?.secret ?? ''
       );
       user = (await _auth.signInWithCredential(twitterCredential)).user;
       print("signed in as: ${user.displayName}");
@@ -288,7 +297,7 @@ class FirebaseProvider {
     DocumentSnapshot documentSnapshot =
         await _firestore.collection("users").document(uid).get();
     print("documentSnapshot: " + documentSnapshot.exists.toString());
-//    return User.fromMap(documentSnapshot.data);
+    return User.fromMap(documentSnapshot.data);
   }
 
   Future<void> followUser(

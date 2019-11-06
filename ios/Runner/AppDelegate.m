@@ -10,6 +10,7 @@
     if(![FIRApp defaultApp]) {
         [FIRApp configure];
     }
+    [[Twitter sharedInstance] startWithConsumerKey:@"bH7sZQeHtJVfs6WchBBtjuahk" consumerSecret:@"fa4TGsilj8iCoqBGIAF7jeJykmmr3n98CzSEbN3dwvSyPA2jgW"];
   // Override point for customization after application launch.
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
 }
@@ -35,6 +36,11 @@
     // The token is not currently available.
     NSLog(@"Remote notification support is unavailable due to error: %@", err);
     [self disableRemoteNotificationFeatures];
+}
+
+- (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<NSString *, id> *)options
+{
+    return [[Twitter sharedInstance] application:app openURL:url options:options];
 }
 
 @end

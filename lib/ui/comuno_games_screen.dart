@@ -29,9 +29,75 @@ class _ComunoGamesScreenState extends State<ComunoGamesScreen> {
             child: Image.asset("assets/comuno_logo.png")
         ),
       ),
-      body: Center(
-        child: CircularProgressIndicator(),
-      )
+      body: ListView(
+        children: <Widget>[
+          Padding(
+            padding: EdgeInsets.only(top: 10, left: 10, right: 10),
+            child: Card(
+              color: Colors.white70,
+              child: Column(
+                children: <Widget>[
+                  Container(
+                    height: 100,
+                    child: ListTile(
+                      leading: Padding(
+                        padding: EdgeInsets.only(top: 25),
+                        child: Icon(
+                          Icons.camera_alt,
+                          size: 24,
+                          color: Color(0xFF2AB1F3),
+                        ),
+                      ),
+                      title: Center(
+                          child: Text(
+                            "Caption It!",
+                            style: TextStyle(
+                                fontSize: 20,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.bold
+                            ),
+                          )
+                      ),
+                      trailing: Padding(
+                        padding: EdgeInsets.only(top: 25),
+                        child: Icon(
+                          Icons.chevron_right,
+                          size: 24,
+                          color: Colors.grey,
+                        ),
+                      )
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.only(top: 10, left: 10, right: 10),
+            child: Card(
+              color: Colors.white70,
+              child: Column(
+                children: <Widget>[
+                  ListTile(
+//                    leading: Icon(Icons.camera_alt, size: 24, color: Color(0xFF2AB1F3),),
+                    title: Center(
+                        child: Text(
+                          "More games coming soon",
+                          style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.bold
+                          ),
+                        )
+                    ),
+//                    trailing: Icon(Icons.chevron_right, size: 24, color: Colors.grey,),
+                  )
+                ],
+              ),
+            ),
+          )
+        ],
+      ),
     );
   }
 }

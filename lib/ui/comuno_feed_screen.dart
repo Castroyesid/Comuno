@@ -1,17 +1,29 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/cupertino.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+import 'package:jiffy/jiffy.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:comuno/main.dart' as main;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:comuno/models/like.dart';
 import 'package:comuno/models/user.dart';
 import 'package:comuno/resources/repository.dart';
-import 'package:comuno/ui/chat_screen.dart';
+//import 'package:comuno/ui/chat_screen.dart';
 import 'package:comuno/ui/comments_screen.dart';
 import 'package:comuno/ui/comuno_friend_profile_screen.dart';
 import 'package:comuno/ui/likes_screen.dart';
+import 'package:comuno/ui/login_screen.dart';
+import 'package:pk_skeleton/pk_skeleton.dart';
+
+import 'package:timeago/timeago.dart' as timeago;
+//import 'package:comuno/resources/firebase_provider.dart';
+import 'package:comuno/resources/twitter.dart' as twitter;
 
 class ComunoFeedScreen extends StatefulWidget {
   @override
@@ -28,13 +40,76 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
   bool _isLiked = false;
   List<String> followingUIDs = List<String>();
 
+  bool _loadingVisible = true;
+  bool _feedVisible = false;
+  var data;
+//  DataSnapshot snapshot;
+
+//  final databaseReference = FirebaseDatabase.instance.reference();
+//  var userDatabaseReference;
+//  var articleDatabaseReference;
+
   @override
   void initState() {
     super.initState();
-    fetchFeed();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onAfterBuild(context));
+
   }
 
-  void fetchFeed() async {
+  _onAfterBuild(BuildContext context) async {
+    await _fetchFeed();
+    if (main.loggedIn == null) {
+      Navigator.pushReplacement(context,
+          MaterialPageRoute(builder: (context) {
+            return main.MyApp();
+          }));
+    }
+    if (main.loggedIn && main.isGoogle) {
+      _fetchNewsFeed();
+    }
+    if (main.loggedIn && main.isTwitter){
+      _fetchTweets();
+    }
+  }
+
+  void _fetchNewsFeed() async {
+    var response;
+    response = await http.get(
+        Uri.encodeFull('https://newsapi.org/v2/top-headlines?sources=google-news&language=en'),
+        headers: {
+          "Accept": "application/json",
+          "X-Api-Key": "ab31ce4a49814a27bbb16dd5c5c06608"
+        });
+    // TODO save to db
+//    userDatabaseReference = databaseReference.child(globalStore.user.id);
+//    articleDatabaseReference = userDatabaseReference.child('articles');
+//    var snap = await articleDatabaseReference.once();
+    if (mounted) {
+      this.setState(() {
+        data = json.decode(response.body);
+//        snapshot = snap;
+
+        _loadingVisible = false;
+        _feedVisible = true;
+      });
+    }
+  }
+
+  void _fetchTweets() async {
+    var response;
+    response = await twitter.getHomeTimeline();
+    if (mounted) {
+      this.setState(() {
+        data = json.decode(response.body);
+        print(data[0]);
+//        snapshot = snap;
+        _loadingVisible = false;
+        _feedVisible = true;
+      });
+    }
+  }
+
+  _fetchFeed() async {
     FirebaseUser currentUser = await _repository.getCurrentUser();
 
     User user = await _repository.fetchUserDetailsById(currentUser.uid);
@@ -85,15 +160,441 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
 //          )
         ],
       ),
-      body: currentUser != null
-          ? Padding(
-              padding: const EdgeInsets.only(top: 4.0),
-              child: postImagesWidget(),
-            )
-          : Center(
-              child: CircularProgressIndicator(),
-            ),
-    );
+      body:
+//      currentUser != null &&
+//          ?
+//            Padding(
+//              padding: const EdgeInsets.only(top: 4.0),
+//              child: postImagesWidget(),
+//            )
+          main.isGoogle ?
+            data != null && data["articles"].length != 0 ?
+              AnimatedOpacity(
+                opacity: _feedVisible ? 1.0 : 0.0,
+                duration: Duration(milliseconds: 1000),
+                child: ListView.builder(
+                  itemCount: data == null ? 0 : data["articles"].length,
+                  padding: new EdgeInsets.all(8.0),
+                  itemBuilder: (BuildContext context, int index) {
+                    return new GestureDetector(
+                      child: new Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15.0),
+                        ),
+                        elevation: 1.7,
+                        child: new Padding(
+                          padding: new EdgeInsets.all(10.0),
+                          child: new Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              new Row(
+                                children: <Widget>[
+                                  new Column(
+                                    children: <Widget>[
+                                      new Padding(
+                                        padding: new EdgeInsets.all(8.0),
+                                        child: new SizedBox(
+                                            height: 80.0,
+                                            width: 80.0,
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(80),
+                                              clipBehavior: Clip.hardEdge,
+                                              child: new Image.network(
+                                                data["articles"][index]
+                                                ["urlToImage"],
+                                                fit: BoxFit.cover,
+                                              ),
+                                            )
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Expanded(
+                                    child: new Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.start,
+                                      children: <Widget>[
+                                        new Padding(
+                                          padding: new EdgeInsets.only(
+                                              left: 4.0,
+                                              right: 8.0,
+                                              bottom: 8.0,
+                                              top: 8.0),
+                                          child: new Text(
+                                            data["articles"][index]["title"],
+                                            style: new TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        new Padding(
+                                          padding: new EdgeInsets.only(left: 4.0),
+                                          child: new Text(
+                                            timeago.format(DateTime.parse(data["articles"]
+                                            [index]["publishedAt"])),
+                                            style: new TextStyle(
+                                              fontWeight: FontWeight.w400,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ),
+//                                      new Padding(
+//                                        padding: new EdgeInsets.all(5.0),
+//                                        child: new Text(
+//                                          data["articles"][index]["source"]["name"],
+//                                          style: new TextStyle(
+//                                            fontWeight: FontWeight.w500,
+//                                            color: Colors.grey[700],
+//                                          ),
+//                                        ),
+//                                      ),
+                                      ],
+                                    ),
+                                  )
+                                ],
+                              ),
+                              new Row(
+                                children: [
+                                  new Expanded(
+                                    child: new GestureDetector(
+                                      child: new Column(
+                                        crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                        children: [
+                                          new Padding(
+                                            padding: new EdgeInsets.only(
+                                                left: 8.0,
+                                                right: 8.0,
+                                                bottom: 8.0),
+                                            child: new Text(
+                                              data["articles"][index]
+                                              ["description"],
+                                              style: new TextStyle(
+                                                color: Colors.grey[500],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      onTap: () {
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              new Row(
+                                children: <Widget>[
+                                  Expanded(
+                                    child: Container(
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            top: BorderSide(
+                                                width: 0.8,
+                                                color: Colors.grey.shade200
+                                            ),
+                                            right: BorderSide(
+                                                width: 0.8,
+                                                color: Colors.grey.shade200
+                                            ),
+                                          ),
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.only(top: 10, bottom: 5),
+                                          child: Container(
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.center,
+                                              children: <Widget>[
+                                                Padding(
+                                                  padding: EdgeInsets.only(right: 10),
+                                                  child: Icon(
+                                                    Icons.thumb_up,
+                                                    size: 16,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  "Like",
+                                                  style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 16,
+                                                      color: Colors.grey
+                                                  ),
+                                                )
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            top: BorderSide(
+                                                width: 0.8,
+                                                color: Colors.grey.shade200
+                                            ),
+                                          ),
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.only(top: 10, bottom: 5),
+                                          child: Container(
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.center,
+                                              children: <Widget>[
+                                                Padding(
+                                                  padding: EdgeInsets.only(right: 10),
+                                                  child: Icon(
+                                                    Icons.insert_comment, size: 16,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  "Comments",
+                                                  style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 16,
+                                                      color: Colors.grey
+                                                  ),
+                                                )
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                    ),
+                                  ),
+                                ],
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              )
+            : AnimatedOpacity(
+                opacity: _loadingVisible ? 1.0 : 0.0,
+                duration: Duration(milliseconds: 500),
+                child: PKCardListSkeleton(
+                  isCircularImage: true,
+                  isBottomLinesActive: true,
+                  length: 10,
+                ),
+              )
+           :  /// is Twitter
+              data != null && data.length != 0 ?
+              AnimatedOpacity(
+                opacity: _feedVisible ? 1.0 : 0.0,
+                duration: Duration(milliseconds: 1000),
+                child: ListView.builder(
+                  itemCount: data == null ? 0 : data.length,
+                  padding: new EdgeInsets.all(8.0),
+                  itemBuilder: (BuildContext context, int index) {
+                    return new GestureDetector(
+                      child: new Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15.0),
+                        ),
+                        elevation: 1.7,
+                        child: new Padding(
+                          padding: new EdgeInsets.all(10.0),
+                          child: new Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              new Row(
+                                children: <Widget>[
+                                  new Column(
+                                    children: <Widget>[
+                                      new Padding(
+                                        padding: new EdgeInsets.all(8.0),
+                                        child: new SizedBox(
+                                            height: 80.0,
+                                            width: 80.0,
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(80),
+                                              clipBehavior: Clip.hardEdge,
+                                              child: new Image.network(
+                                                data[index]['user']['profile_image_url_https'] ?? '',
+                                                fit: BoxFit.cover,
+                                              ),
+                                            )
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Expanded(
+                                    child: new Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.start,
+                                      children: <Widget>[
+                                        new Padding(
+                                          padding: new EdgeInsets.only(
+                                              left: 4.0,
+                                              right: 8.0,
+                                              bottom: 8.0,
+                                              top: 8.0),
+                                          child: new Text(
+                                            data[index]['user']['name'] ?? '',
+                                            style: new TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        new Padding(
+                                          padding: new EdgeInsets.only(left: 4.0),
+                                          child: new Text(
+                                            timeago.format(_parseTweetDate(
+                                                data
+                                                [index]['created_at']
+                                            )),
+                                            style: new TextStyle(
+                                              fontWeight: FontWeight.w400,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                ],
+                              ),
+                              new Row(
+                                children: [
+                                  new Expanded(
+                                    child: new GestureDetector(
+                                      child: new Column(
+                                        crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                        children: [
+                                          new Padding(
+                                            padding: new EdgeInsets.only(
+                                                left: 8.0,
+                                                right: 8.0,
+                                                bottom: 8.0),
+                                            child: new Text(
+                                              data[index]
+                                              ['full_text'],
+                                              style: new TextStyle(
+                                                color: Colors.grey[500],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      onTap: () {
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              new Row(
+                                children: <Widget>[
+                                  Expanded(
+                                    child: Container(
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            top: BorderSide(
+                                                width: 0.8,
+                                                color: Colors.grey.shade200
+                                            ),
+                                            right: BorderSide(
+                                                width: 0.8,
+                                                color: Colors.grey.shade200
+                                            ),
+                                          ),
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.only(top: 10, bottom: 5),
+                                          child: Container(
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.center,
+                                              children: <Widget>[
+                                                Padding(
+                                                  padding: EdgeInsets.only(right: 10),
+                                                  child: Icon(
+                                                    Icons.thumb_up,
+                                                    size: 16,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  "Like",
+                                                  style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 16,
+                                                      color: Colors.grey
+                                                  ),
+                                                )
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            top: BorderSide(
+                                                width: 0.8,
+                                                color: Colors.grey.shade200
+                                            ),
+                                          ),
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.only(top: 10, bottom: 5),
+                                          child: Container(
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.center,
+                                              children: <Widget>[
+                                                Padding(
+                                                  padding: EdgeInsets.only(right: 10),
+                                                  child: Icon(
+                                                    Icons.insert_comment, size: 16,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  "Comments",
+                                                  style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 16,
+                                                      color: Colors.grey
+                                                  ),
+                                                )
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                    ),
+                                  ),
+                                ],
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              )
+              : AnimatedOpacity(
+                  opacity: _loadingVisible ? 1.0 : 0.0,
+                  duration: Duration(milliseconds: 500),
+                  child: PKCardListSkeleton(
+                    isCircularImage: true,
+                    isBottomLinesActive: true,
+                    length: 10,
+                  ),
+                )
+          );
   }
 
   Widget postImagesWidget() {
@@ -403,4 +904,23 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
       print("Post Unliked");
     });
   }
+
+  /// Removes the timezone to allow [DateTime] to parse the string.
+  String formatTwitterDateString(String twitterDateString) {
+    final List sanitized = twitterDateString.split(" ")
+      ..removeAt(0)
+      ..removeWhere((part) => part.startsWith("+"));
+
+    return sanitized.join(" ");
+  }
+
+  DateTime _parseTweetDate(String str) {
+    try {
+      return DateTime.parse(str);
+    } catch (ex) {
+      final String dateString = formatTwitterDateString(str);
+      return DateFormat("MMM dd HH:mm:ss yyyy", "en_US").parse(dateString);
+    }
+  }
+
 }

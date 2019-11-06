@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:comuno/models/message.dart';
 import 'package:comuno/models/user.dart';
 import 'package:comuno/resources/firebase_provider.dart';
+import 'package:flutter_twitter_login/flutter_twitter_login.dart';
 
 class Repository {
 
@@ -20,6 +21,8 @@ class Repository {
   Future<bool> authenticateUser(FirebaseUser user) => _firebaseProvider.authenticateUser(user);
 
   Future<FirebaseUser> getCurrentUser() => _firebaseProvider.getCurrentUser();
+
+//  Future<TwitterSession> getCurrentTwitterSession() => _firebaseProvider.getCurrentTwitterSession();
 
   Future<void> signOut() => _firebaseProvider.signOut();
 

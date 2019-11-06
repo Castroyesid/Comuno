@@ -20,6 +20,10 @@ class MyApp extends StatefulWidget {
   }
 }
 
+bool isGoogle = false;
+bool isTwitter = false;
+bool loggedIn = false;
+
 class MyAppState extends State<MyApp> {
   var _repository = Repository();
 
@@ -48,7 +52,7 @@ class MyAppState extends State<MyApp> {
         home: FutureBuilder(
           future: _repository.getCurrentUser(),
           builder: (context, AsyncSnapshot<FirebaseUser> snapshot) {
-            if (snapshot.hasData) {
+            if (loggedIn && snapshot.hasData) {
               return ComunoHomeScreen();
             } else {
               return LoginScreen();

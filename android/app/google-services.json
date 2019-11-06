@@ -15,11 +15,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "135159796599-05rb32ra0kkne16sgsdf22g7slo02qv5.apps.googleusercontent.com",
+          "client_id": "135159796599-iubsn650fr0vh3rru7i3h5of9k79s557.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "org.comuno.comuno",
-            "certificate_hash": "6f66f44b73a5865389f8db648701d09016036522"
+            "certificate_hash": "783ab5a1127dda6f360d460faedfff1d8d508498"
           }
         },
         {
@@ -40,11 +40,11 @@
               "client_type": 3
             },
             {
-              "client_id": "135159796599-cf4rho1dd83uuvqspk314j5ndoikbkg5.apps.googleusercontent.com",
+              "client_id": "135159796599-5uu7dv04onfjoskgds2u2ehkr0u60mus.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "org.comuno.comuno",
-                "app_store_id": "1481104910"
+                "bundle_id": "com.comuno.comunoapp",
+                "app_store_id": "1484585407"
               }
             }
           ]
