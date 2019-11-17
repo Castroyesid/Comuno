@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,11 @@ import 'package:comuno/ui/edit_profile_screen.dart';
 import 'package:comuno/ui/likes_screen.dart';
 import 'package:comuno/ui/post_detail_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:timeago/timeago.dart' as timeago;
+import 'package:comuno/resources/translator.dart' as translator;
+import 'package:comuno/models/translation.dart';
+import 'package:overlay_container/overlay_container.dart';
+import 'package:flutter/services.dart';
 
 class ComunoProfileScreen extends StatefulWidget {
   @override
@@ -38,6 +44,18 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
   bool _isLiked = false;
 
   List<dynamic> _campaigns = new List<dynamic>();
+  List<dynamic> _posts = new List<dynamic>();
+  Map<String, String> _chunkMap = new Map<String, String>();
+
+  String _translation;
+  String _sourceLanguage;
+  String _targetLanguage;
+  int _dropdownShownIndex;
+  String _dropdownChunkUuid;
+
+  bool _fullTranslateEditable = false;
+
+  TextEditingController _fullTranslationTextController = new TextEditingController();
 
   @override
   void initState() {
@@ -62,7 +80,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
     },
     {
       "is_my": false,
-      "title": "Abdul",
+      "title": "ᏍᏏᏉᏯ",
       "description": "is creating alphabet for Cheeokee",
       "supporters_num": 437
     },
@@ -72,6 +90,41 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
       "description": "is translating songs into Quechua",
       "supporters_num": 194
     }
+  ];
+
+  final _userPostData = [
+    {
+      "created_at": "2019-11-15T23:59:00+00:00",
+      "full_text": "The only thing I know is that left a lot of things to learn."
+    },
+    {
+      "created_at": "2019-11-15T22:59:00+00:00",
+      "full_text": "The first step toward success is taken when you refuse to be a captive of the environment in which you first find yourself."
+    },
+    {
+      "created_at": "2019-11-15T21:59:00+00:00",
+      "full_text": "Great minds discuss ideas; average minds discuss events; small minds discuss people."
+    },
+    {
+      "created_at": "2019-11-15T20:59:00+00:00",
+      "full_text": "Those who dare to fail miserably can achieve greatly."
+    },
+    {
+      "created_at": "2019-11-15T19:59:00+00:00",
+      "full_text": "It is hard to fail, but it is worse never to have tried to succeed."
+    },
+    {
+      "created_at": "2019-11-14T23:59:00+00:00",
+      "full_text": "Let us always meet each other with smile, for the smile is the beginning of love."
+    },
+    {
+      "created_at": "2019-11-13T23:59:00+00:00",
+      "full_text": "It is our choices, that show what we truly are, far more than our abilities."
+    },
+    {
+      "created_at": "2019-11-12T23:59:00+00:00",
+      "full_text": "If you want to live a happy life, tie it to a goal, not to people or things."
+    },
   ];
 
   _onAfterBuild(BuildContext context) {
@@ -85,6 +138,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
     User user = await _repository.retrieveUserDetails(currentUser);
     setState(() {
       _user = user;
+      _posts = _userPostData; // TODO: change to json.decode(user.posts)
     });
     _future = _repository.retrieveUserPosts(_user.uid);
   }
@@ -100,16 +154,6 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
               child: Image.asset("assets/comuno_logo.png")
           ),
           actions: <Widget>[
-//            new Padding(
-//              padding: EdgeInsets.only(right: 0),
-//              child: IconButton(
-//                icon: Icon(Icons.create),
-//                color: Colors.white,
-//                onPressed: () {
-//
-//                },
-//              ),
-//            ),
             new Padding(
               padding: EdgeInsets.only(right: 10),
               child: IconButton(
@@ -446,6 +490,63 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                     children: <Widget>[
                       Expanded(
                           child: Padding(
+                            padding: const EdgeInsets.only(top: 10.0, left: 10, right: 10),
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(25.0),
+                                child:  Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Row(
+                                        children: <Widget>[
+                                          Icon(Icons.star, color: Colors.amberAccent,)
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: <Widget>[
+                                          Wrap(
+                                            children: <Widget>[
+                                              Text(
+                                                  "You've earned ",
+                                                  style: TextStyle(
+                                                      fontStyle: FontStyle.italic
+                                                  )
+                                              ),
+                                              Text(
+                                                  "${_user.points != null && _user.points != "" ? _user.points : "0"}",
+                                                  style: TextStyle(
+                                                      fontStyle: FontStyle.italic,
+                                                    fontWeight: FontWeight.bold
+                                                  )
+                                              ),
+                                              Text(
+                                                  " points",
+                                                  style: TextStyle(
+                                                      fontStyle: FontStyle.italic
+                                                  )
+                                              )
+                                            ],
+                                          ),
+
+                                        ],
+                                      ),
+                                    )
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                          child: Padding(
                             padding: const EdgeInsets.all(10.0),
                             child: Card(
                               child: Column(
@@ -566,7 +667,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                                               _campaigns[index]["description"]
                                                           ),
                                                           Text(
-                                                              '${_campaigns[index]["patrons_num"]} patrons'
+                                                              '${_campaigns[index]["patrons_num"] ?? "0"} patrons'
                                                           )
                                                         ],
                                                       ),
@@ -597,7 +698,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                                               _campaigns[index]["description"]
                                                           ),
                                                           Text(
-                                                              '${_campaigns[index]["supporters_num"]} supporters'
+                                                              '${_campaigns[index]["supporters_num"] ?? "0"} supporters'
                                                           )
                                                         ],
                                                       ),
@@ -632,10 +733,10 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                     child: Container(
                       child: ListView.builder(
                           shrinkWrap: true,
-                          itemCount: _campaigns.length,
+                          itemCount: _posts.length,
                           itemBuilder: (BuildContext context, int index) {
                             if (_isPostActive
-                                && _campaigns.length > 0) {
+                                && _posts.length > 0) {
                               return Padding(
                                 padding: EdgeInsets.only(top: index == 0 ? 10 : 20, left: 20, right: 20),
                                 child: Card(
@@ -648,78 +749,128 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                     children: <Widget>[
                                       Row(
                                         children: <Widget>[
-                                          Expanded(
-                                            child: Container(
-                                              height: 100,
-                                              child: ListTile(
-                                                leading: Padding(
-                                                  padding: const EdgeInsets.only(top: 15.0, left: 20.0),
-                                                  child: Container(
-                                                      width: 40.0,
-                                                      height: 40.0,
-                                                      decoration: BoxDecoration(
-                                                        borderRadius: BorderRadius.circular(80.0),
-                                                        image: DecorationImage(
-                                                            image: _user.photoUrl.isEmpty
-                                                                ? AssetImage('assets/no_image.png')
-                                                                : NetworkImage(_user.photoUrl),
-                                                            fit: BoxFit.cover),
-                                                      )
-                                                  ),
-                                                ),
-                                                title: Padding(
-                                                  padding: const EdgeInsets.only(top: 30.0, left: 10.0),
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: <Widget>[
-                                                      Text(
-                                                          _user.displayName,
-                                                        style: TextStyle(
-                                                          color: Colors.grey,
-                                                          fontSize: 16,
-                                                          fontWeight: FontWeight.bold
-                                                        ),
+                                          new Column(
+                                            children: <Widget>[
+                                              new Padding(
+                                                padding: new EdgeInsets.all(15.0),
+                                                child: new SizedBox(
+                                                    height: 40.0,
+                                                    width: 40.0,
+                                                    child: ClipRRect(
+                                                      borderRadius: BorderRadius.circular(80),
+                                                      clipBehavior: Clip.hardEdge,
+                                                      child: Container(
+                                                          width: 40.0,
+                                                          height: 40.0,
+                                                          decoration: BoxDecoration(
+                                                            borderRadius: BorderRadius.circular(80.0),
+                                                            image: DecorationImage(
+                                                                image: _user.photoUrl.isEmpty
+                                                                    ? AssetImage('assets/no_image.png')
+                                                                    : NetworkImage(_user.photoUrl),
+                                                                fit: BoxFit.cover),
+                                                          )
                                                       ),
-                                                      Text(
-                                                          "posted 5 min ago",
-                                                        style: TextStyle(
-                                                            color: Colors.grey,
-                                                            fontSize: 10,
-                                                            fontWeight: FontWeight.bold
+                                                    )
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          Expanded(
+                                              child: Stack(
+                                                children: <Widget>[
+                                                  LayoutBuilder(
+                                                    builder: (BuildContext context, BoxConstraints constraints) {
+                                                      return new Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        mainAxisAlignment: MainAxisAlignment.start,
+                                                        children: <Widget>[
+                                                          new Padding(
+                                                            padding: new EdgeInsets.only(
+                                                                left: 4.0,
+                                                                right: 35.0,
+                                                                bottom: 8.0,
+                                                                top: 8.0),
+                                                            child: new Text(
+                                                              _user.displayName,
+                                                              style: new TextStyle(
+                                                                fontWeight: FontWeight.bold,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          new Padding(
+                                                              padding: new EdgeInsets.only(left: 4.0, right: 35),
+                                                              child: new Row(
+                                                                children: <Widget>[
+                                                                  Expanded(
+                                                                    child: new Text(
+                                                                      timeago.format(DateTime.parse(_posts[index]["created_at"])),
+                                                                      style: TextStyle(
+                                                                          color: Colors.grey,
+                                                                          fontSize: 10,
+                                                                          fontWeight: FontWeight.bold
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              )
+                                                          ),
+                                                          _fullTranslateOverlay(index, constraints),
+                                                        ],
+                                                      );
+                                                    },
+                                                  ),
+                                                  Row(
+                                                    mainAxisAlignment: MainAxisAlignment.end,
+                                                    children: <Widget>[
+                                                      Padding(
+                                                        padding: EdgeInsets.only(
+                                                          right: 8,
+                                                        ),
+                                                        child: new IconButton(
+                                                            icon: Icon(
+                                                              Icons.language,
+                                                            ),
+                                                            onPressed: () {
+                                                              _translateAll(_posts[index]
+                                                              ['full_text']);
+                                                              _toggleDropdown(index);
+                                                            }
                                                         ),
                                                       )
                                                     ],
-                                                  ),
-                                                ),
-                                                trailing: Padding(
-                                                  padding: const EdgeInsets.only(top: 20, right: 20.0),
-                                                  child: Icon(Icons.language),
-                                                ),
-                                              ),
-                                            )
-                                          ),
-                                        ],
-                                      ),
-                                      Row(
-                                        children: <Widget>[
-                                          Expanded(
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 10),
-                                              child: Column(
-                                                mainAxisAlignment: MainAxisAlignment.start,
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: <Widget>[
-                                                  Container(
-                                                    height: 100,
-                                                    child: Text("I know there is shape property for"
-                                                        " Card Widget and it takes ShapeBorder class. But I"
-                                                        " am unable to find how to use ShapeBorder class and "
-                                                        "customize my cards in GridView."),
                                                   )
                                                 ],
                                               )
-                                            ),
                                           )
+                                        ],
+                                      ),
+                                      new Row(
+                                        children: [
+                                          new Expanded(
+                                              child: LayoutBuilder(
+                                                builder: (BuildContext context, BoxConstraints constraints) {
+                                                  return new GestureDetector(
+                                                    child: new Column(
+                                                      crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                      children: [
+                                                        new Padding(
+                                                            padding: new EdgeInsets.only(
+                                                                left: 8.0,
+                                                                right: 8.0,
+                                                                bottom: 8.0),
+                                                            child: _buildDescription(_posts[index]
+                                                            ['full_text'], index, _posts[index]['created_at'])
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    onTap: () {
+                                                    },
+                                                  );
+                                                },
+                                              )
+                                          ),
                                         ],
                                       ),
                                       Row(
@@ -811,19 +962,6 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                           ),
                                         ],
                                       )
-//                                      Text(
-//                                        _campaigns[index]["title"],
-//                                        style: TextStyle(
-//                                            fontSize: 14,
-//                                            fontWeight: FontWeight.bold
-//                                        ),
-//                                      ),
-//                                      Text(
-//                                          _campaigns[index]["description"]
-//                                      ),
-//                                      Text(
-//                                          '${_campaigns[index]["patrons_num"]} patrons'
-//                                      )
                                     ],
                                   ),
                                 ),
@@ -867,6 +1005,717 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
             : Center(child: CircularProgressIndicator()),
         );
 //    );
+  }
+
+  _toggleDropdown(int index) {
+    if (_dropdownShownIndex == index) {
+      setState(() {
+        _dropdownShownIndex = null;
+      });
+    } else {
+      setState(() {
+        _dropdownShownIndex = index;
+      });
+    }
+  }
+
+  _toggleChunk(String key) {
+    if (_dropdownChunkUuid == key) {
+      setState(() {
+        _dropdownChunkUuid = null;
+      });
+    } else {
+      setState(() {
+        _dropdownChunkUuid = key;
+      });
+    }
+    print(key);
+  }
+
+  _translateAll(String text) async {
+    Translation tr = await translator.translate(text);
+    if (tr != null && tr.text != null && tr.text.length > 0) {
+      setState(() {
+        _translation = tr.text[0];
+        _sourceLanguage = tr.fromLanguage;
+        _targetLanguage = tr.toLanguage;
+      });
+    }
+  }
+
+  TextStyle _opTextStyle() {
+    return TextStyle(
+//      fontWeight: FontWeight.bold,
+        fontStyle: FontStyle.italic,
+        color: Color(0xFF2AB1F3)
+    );
+  }
+
+  Widget _buildDescription(String description, int index, String timestamp) {
+    List<Widget> chunks = new List<Widget>();
+    List<Widget> overlayChunks = new List<Widget>();
+    List<String> itemsArray = description.split(' ');
+    bool last = false;
+    if (index != null) {
+      int count = 0;
+      for (String item in itemsArray) {
+        String uuid = item + '_' + timestamp;
+        if (item.length > 6 &&
+            !last &&
+            !(item.startsWith("@") || item.startsWith("#") || item.contains("’s") || item.contains("'"))
+        ) {
+          LayoutBuilder layout = LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              return Container(
+                  decoration: BoxDecoration(
+                      border: Border(
+                          bottom: BorderSide(
+                              color: Color(0xFF2AB1F3)
+                          )
+                      )
+                  ),
+                  child: GestureDetector(
+                    onTap: () {
+                      _translateAll(_chunkMap[uuid]);
+                      _toggleChunk(uuid);
+                    },
+                    child: Padding(
+                      padding: EdgeInsets.only(left: count != 0 ? 2 : 0),
+                      child: Text(_chunkMap[uuid], style: TextStyle(color: Color(0xFF2AB1F3)),),
+                    ),
+                  )
+              );
+            },
+          );
+          chunks.add(layout);
+          /// setting map
+          _chunkMap[uuid] = item;
+          /// adding tooltip
+          LayoutBuilder o = LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              return OverlayContainer(
+                show: _dropdownChunkUuid == uuid ? true : false,
+                position: OverlayContainerPosition(
+                  (MediaQuery.of(context).size.width/2 - constraints.maxWidth*0.55 ),
+//                  (MediaQuery.of(context).size.width/2),
+                  -5,
+                ),
+                child: GestureDetector(
+                  onTap: (){
+                    setState(() {
+                      _translation = null;
+                      _dropdownChunkUuid = null;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    margin: const EdgeInsets.only(top: 5),
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: Colors.grey[300],
+                            blurRadius: 3,
+                            spreadRadius: 6,
+                          )
+                        ],
+                        borderRadius: BorderRadius.circular(5)
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(5),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                      border: Border(
+                                          bottom: BorderSide(color: Color(0xFF2AB1F3))
+                                      )
+                                  ),
+                                  child: Padding(
+                                    padding: EdgeInsets.all(5),
+                                    child: Text(
+                                      '${_chunkMap[uuid] ?? ''} (${_sourceLanguage ?? ''}.)' ?? '',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green,
+                                          fontStyle: FontStyle.italic
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: <Widget>[
+                            Center(
+                              child: Padding(
+                                padding: EdgeInsets.only(top: 0, left: 5, right: 5, bottom: 5),
+                                child: Text(
+                                  '${_translation ?? ''} (${_targetLanguage ?? ''}.)' ?? '',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF2AB1F3),
+                                      fontStyle: FontStyle.italic
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Padding(
+                            padding: EdgeInsets.only(left: 5, right: 5),
+                            child: Container(
+                              width: MediaQuery.of(context).size.width * 0.7,
+                              child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    Container(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: Text(" "),
+                                          ),
+                                        )
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                          child: Padding(
+                                            padding: EdgeInsets.all(5),
+                                            child: Center(
+                                              child: FittedBox(
+                                                fit: BoxFit.fitWidth,
+                                                child: Text(
+                                                  "Singular",
+                                                  style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Color(0xFF2AB1F3)
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(
+                                                  "Dual",
+                                                  style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Color(0xFF2AB1F3)
+                                                  )
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(
+                                                  "Plural",
+                                                  style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Color(0xFF2AB1F3)
+                                                  )
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ]
+                              ),
+                            )
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                              border: Border(
+                                  top: BorderSide(color: Color(0xFF2AB1F3))
+                              )
+                          ),
+                          child: Padding(
+                              padding: EdgeInsets.all(5),
+                              child: Container(
+                                width: MediaQuery.of(context).size.width * 0.7,
+                                child:  Row(
+                                  mainAxisSize: MainAxisSize.min,
+//                              mainAxisAlignment: MainAxisAlignment.start,
+                                  children: <Widget>[
+                                    Container(
+                                        child: Padding(
+                                          padding: EdgeInsets.only(top: 5, bottom: 5, left: 10, right: 10),
+                                          child: Center(
+                                            child: Text(
+                                                "1",
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF2AB1F3)
+                                                )
+                                            ),
+                                          ),
+                                        )
+                                    ),
+                                    Expanded(
+                                      child: Container( /// singular 1
+                                        decoration: BoxDecoration(
+                                            border: Border(
+                                                left: BorderSide(color: Color(0xFF2AB1F3))
+                                            )
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(_translation ?? '', style: _opTextStyle(),),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container( /// dual 1
+                                        decoration: BoxDecoration(
+                                            border: Border(
+                                                left: BorderSide(color: Color(0xFF2AB1F3))
+                                            )
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(_translation ?? '', style: _opTextStyle(),),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container( /// plural 1
+                                        decoration: BoxDecoration(
+                                            border: Border(
+                                                left: BorderSide(color: Color(0xFF2AB1F3))
+                                            )
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(_translation ?? '', style: _opTextStyle(),),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  ],
+                                ),
+                              )
+                          ),
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                              border: Border(
+                                  top: BorderSide(color: Color(0xFF2AB1F3))
+                              )
+                          ),
+                          child:  Padding(
+                              padding: EdgeInsets.all(5),
+                              child: Container(
+                                width: MediaQuery.of(context).size.width * 0.7,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  children: <Widget>[
+                                    Container(
+                                        child: Padding(
+                                          padding: EdgeInsets.only(top: 5, bottom: 5, left: 10, right: 10),
+                                          child: Center(
+                                            child: Text(
+                                                "2",
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF2AB1F3)
+                                                )
+                                            ),
+                                          ),
+                                        )
+                                    ),
+                                    Expanded(
+                                      child: Container( /// singular 2
+                                        decoration: BoxDecoration(
+                                            border: Border(
+                                                left: BorderSide(color: Color(0xFF2AB1F3))
+                                            )
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(_translation ?? '', style: _opTextStyle(),),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container( /// dual 2
+                                        decoration: BoxDecoration(
+                                            border: Border(
+                                                left: BorderSide(color: Color(0xFF2AB1F3))
+                                            )
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(_translation ?? '', style: _opTextStyle(),),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container( /// plural 2
+                                        decoration: BoxDecoration(
+                                            border: Border(
+                                                left: BorderSide(color: Color(0xFF2AB1F3))
+                                            )
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(_translation ?? '', style: _opTextStyle(),),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  ],
+                                ),
+                              )
+                          ),
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                              border: Border(
+                                  top: BorderSide(color: Color(0xFF2AB1F3))
+                              )
+                          ),
+                          child: Padding(
+                              padding: EdgeInsets.all(5),
+                              child: Container(
+                                width: MediaQuery.of(context).size.width * 0.7,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  children: <Widget>[
+                                    Container(
+                                        child: Padding(
+                                          padding: EdgeInsets.only(top: 5, bottom: 5, left: 10, right: 10),
+                                          child: Center(
+                                            child: Text(
+                                                "3",
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF2AB1F3)
+                                                )
+                                            ),
+                                          ),
+                                        )
+                                    ),
+                                    Expanded(
+                                      child: Container( /// singular 3
+                                        decoration: BoxDecoration(
+                                            border: Border(
+                                                left: BorderSide(color: Color(0xFF2AB1F3))
+                                            )
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(_translation ?? '', style: _opTextStyle(),),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container( /// dual 3
+                                        decoration: BoxDecoration(
+                                            border: Border(
+                                                left: BorderSide(color: Color(0xFF2AB1F3))
+                                            )
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(_translation ?? '', style: _opTextStyle(),),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container( /// Plural 3
+                                        decoration: BoxDecoration(
+                                            border: Border(
+                                                left: BorderSide(color: Color(0xFF2AB1F3))
+                                            )
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5),
+                                          child: Center(
+                                            child: FittedBox(
+                                              fit: BoxFit.fitWidth,
+                                              child: Text(_translation ?? '', style: _opTextStyle(),),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+          overlayChunks.add(o);
+          last = true;
+        } else {
+          Container c = Container(
+              child: Padding(
+                padding: EdgeInsets.only(left: count != 0 ? 2 : 0),
+                child: Text(item),
+              )
+          );
+          chunks.add(c);
+          last = false;
+        }
+        count += 1;
+      }
+    }
+    chunks.addAll(overlayChunks);
+    return Wrap(
+      children: chunks,
+    );
+  }
+
+  _saveTranslationState() {
+    // TODO: save suggestion to api
+    setState(() {
+      _dropdownShownIndex = null;
+      _translation = null;
+      _fullTranslateEditable = false;
+      _fullTranslationTextController.text = "";
+    });
+  }
+
+  Widget _fullTranslateOverlay(int index, BoxConstraints constraints) {
+    return OverlayContainer(
+      asWideAsParent: true,
+      show: _dropdownShownIndex == index ? true : false,
+      position: OverlayContainerPosition(
+        (constraints.maxWidth/2*(-0.4)),
+        15,
+      ),
+      child: Container(
+        padding: const EdgeInsets.only(left: 20, right: 20),
+        margin: const EdgeInsets.only(top: 5),
+        decoration:
+        BoxDecoration(
+            color: Colors.white,
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.grey[300],
+                blurRadius: 3,
+                spreadRadius: 6,
+              )
+            ],
+            borderRadius: BorderRadius.circular(5)
+        ),
+        child: _translation != null ?
+        Container(
+          child: ListView(
+            shrinkWrap: true,
+            children: <Widget>[
+              Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Container(
+                        child: Text("${_sourceLanguage ?? ""} -> ${_targetLanguage ?? ""}" ?? ""),
+                      ),
+                    ),
+                    !_fullTranslateEditable ? InkWell(
+                      onTap: () {
+                        _saveTranslationState();
+                      },
+                      child: Padding(
+                        padding: EdgeInsets.all(5),
+                        child: Text("X", style: TextStyle(fontWeight: FontWeight.bold),),
+                      ),
+                    ) : Container()
+                  ],
+                ),
+              ),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: !_fullTranslateEditable ? Container(
+                      child: Text(_translation ?? ""),
+                    ) : TextFormField(
+                      controller: _fullTranslationTextController,
+                      autofocus: false,
+                      minLines: 1,
+                      maxLines: 6,
+                      style: TextStyle(
+                          fontSize: 12
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        labelStyle: new TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+//                      labelText: "${AppLocalizations.of(context).sendPageLabelMemo ?? ''}"
+                      ),
+                    ),
+                  )
+                ],
+              ),
+              Padding(
+                padding: EdgeInsets.only(top: 15),
+                child: Container(),
+              )
+//              Padding(
+//                padding: EdgeInsets.only(top: 15, right: 5),
+//                child: Row(
+//                  mainAxisAlignment: MainAxisAlignment.end,
+//                  children: <Widget>[
+//                    Container(
+//                      child: !_fullTranslateEditable ? InkWell(
+//                        onTap: (){
+//                          setState(() {
+//                            _fullTranslateEditable = true;
+//                            _fullTranslationTextController.text = _translation;
+//                          });
+//                          SystemChannels.textInput.invokeMethod('TextInput.show');
+//                        },
+//                        child: Wrap(
+//                          children: <Widget>[
+//                            Padding(
+//                              padding: EdgeInsets.only(top: 2),
+//                              child: Text(
+//                                "suggest a correction",
+//                                style: TextStyle(
+//                                    fontSize: 10
+//                                ),
+//                              ),
+//                            ),
+//                            Icon(Icons.outlined_flag, size: 16,)
+//                          ],
+//                        ),
+//                      ) : Wrap(
+//                        children: <Widget>[
+//                          Padding(
+//                              padding: EdgeInsets.only(top: 2, right: 25),
+//                              child: InkWell(
+//                                onTap: () {
+//                                  setState(() {
+//                                    _fullTranslateEditable = false;
+//                                  });
+//                                  SystemChannels.textInput.invokeMethod('TextInput.hide');
+//                                },
+//                                child: Wrap(
+//                                  children: <Widget>[
+//                                    Padding(
+//                                      padding: EdgeInsets.only(top: 2, right: 2),
+//                                      child: Text(
+//                                        "cancel",
+//                                        style: TextStyle(
+//                                            fontSize: 10
+//                                        ),
+//                                      ),
+//                                    ),
+//                                    Icon(Icons.cancel, size: 16,),
+//                                  ],
+//                                ),
+//                              )
+//                          ),
+//                          Padding(
+//                              padding: EdgeInsets.only(top: 2, left: 25),
+//                              child: InkWell(
+//                                onTap: (){
+//                                  setState(() {
+//                                    _fullTranslateEditable = false;
+//                                    _translation = _fullTranslationTextController.text;
+//                                  });
+//                                  SystemChannels.textInput.invokeMethod('TextInput.hide');
+//                                },
+//                                child: Wrap(
+//                                  children: <Widget>[
+//                                    Padding(
+//                                      padding: EdgeInsets.only(top: 2, right: 2),
+//                                      child: Text(
+//                                        "save",
+//                                        style: TextStyle(
+//                                            fontSize: 10
+//                                        ),
+//                                      ),
+//                                    ),
+//                                    Icon(Icons.save, size: 16,),
+//                                  ],
+//                                ),
+//                              )
+//                          ),
+//                        ],
+//                      ),
+//                    )
+//                  ],
+//                ),
+//              )
+            ],
+          ),
+        ) : Container(
+          height: 100,
+          child: Center(
+            child: new CircularProgressIndicator(),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget postImagesWidget() {
@@ -1230,4 +2079,5 @@ class _ListItemState extends State<ListItem> {
       print("Post Unliked");
     });
   }
+
 }

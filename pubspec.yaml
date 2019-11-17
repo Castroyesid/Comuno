@@ -52,7 +52,10 @@ dependencies:
   pk_skeleton: ^0.0.2
   timeago: ^2.0.21
   random_string: ^1.1.0
-  jiffy: ^2.1.1
+#  jiffy: ^2.1.1.
+  overlay_container: ^0.0.4+1
+  uuid: 2.0.1
+  dotted_border: ^1.0.3
 
 dev_dependencies:
   flutter_test:
@@ -80,6 +83,9 @@ flutter:
     - assets/no_image.png
     - assets/blankimage.png
     - assets/background_def.jpg
+    - assets/default_feed_image.jpg
+    - assets/blue_dot.jpg
+    - assets/words-bg.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.io/assets-and-images/#resolution-aware.

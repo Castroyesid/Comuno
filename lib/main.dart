@@ -43,6 +43,7 @@ class MyAppState extends State<MyApp> {
         ],
         debugShowCheckedModeBanner: false,
         theme: new ThemeData(
+            platform: TargetPlatform.android,
             primarySwatch: Colors.blue,
             primaryColor: Colors.black,
             primaryIconTheme: IconThemeData(color: Colors.black),

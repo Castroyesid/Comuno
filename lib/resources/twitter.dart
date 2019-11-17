@@ -5,7 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'package:random_string/random_string.dart';
 import 'package:comuno/resources/repository.dart';
-import 'package:comuno/models/tweet.dart';
+//import 'package:comuno/models/tweet.dart';
 
 final String twitterConsumerKey  = 'bH7sZQeHtJVfs6WchBBtjuahk';
 final String secretKey = 'fa4TGsilj8iCoqBGIAF7jeJykmmr3n98CzSEbN3dwvSyPA2jgW';

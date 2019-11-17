@@ -67,10 +67,10 @@ class _ComunoHomeScreenState extends State<ComunoHomeScreen> {
               onPageChanged: onPageChanged,
             ),
             bottomNavigationBar: new CupertinoTabBar(
-              activeColor: Colors.blue,
+              activeColor: Color(0xFF2AB1F3),
               items: <BottomNavigationBarItem>[
                 new BottomNavigationBarItem(
-                    icon: new Icon(Icons.rss_feed, color: (_page == 0) ? Colors.blue : Colors.grey),
+                    icon: new Icon(Icons.rss_feed, color: (_page == 0) ? Color(0xFF2AB1F3) : Colors.grey),
 //                    title: new Container(height: 0.0),
                     title: new Padding(
                         padding: EdgeInsets.only(bottom: 2),
@@ -83,7 +83,7 @@ class _ComunoHomeScreenState extends State<ComunoHomeScreen> {
 //                    title: new Container(height: 0.0),
 //                    backgroundColor: Colors.white),
                 new BottomNavigationBarItem(
-                    icon: new Icon(Icons.videogame_asset, color: (_page == 1) ? Colors.blue : Colors.grey),
+                    icon: new Icon(Icons.videogame_asset, color: (_page == 1) ? Color(0xFF2AB1F3) : Colors.grey),
 //                    title: new Container(height: 0.0),
                     title: new Padding(
                       padding: EdgeInsets.only(bottom: 2),
@@ -96,7 +96,7 @@ class _ComunoHomeScreenState extends State<ComunoHomeScreen> {
 //                    title: new Container(height: 0.0),
 //                    backgroundColor: Colors.white),
                 new BottomNavigationBarItem(
-                    icon: new Icon(Icons.person, color: (_page == 2) ? Colors.blue : Colors.grey),
+                    icon: new Icon(Icons.person, color: (_page == 2) ? Color(0xFF2AB1F3) : Colors.grey),
 //                    title: new Container(height: 0.0),
                     title: new Padding(
                       padding: EdgeInsets.only(bottom: 2),
