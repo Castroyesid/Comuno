@@ -191,7 +191,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                     email: _user.email,
                                     bio: _user.bio,
                                     name: _user.displayName,
-                                    phone: _user.phone
+//                                    phone: _user.phone
                                   ))
                                 ));
                               },

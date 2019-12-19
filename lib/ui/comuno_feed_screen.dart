@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:core';
 //import 'dart:math';
+import 'package:comuno/ui/comuno_add_screen.dart';
+import 'package:comuno/ui/comuno_profile_third_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/painting.dart';
 import 'package:http/http.dart' as http;
@@ -16,9 +18,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:comuno/main.dart' as main;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+//import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:comuno/models/like.dart';
 import 'package:comuno/models/user.dart';
+import 'package:comuno/models/post.dart';
+import 'package:comuno/models/campaign.dart';
 import 'package:comuno/resources/repository.dart';
 //import 'package:comuno/ui/chat_screen.dart';
 import 'package:comuno/ui/comments_screen.dart';
@@ -47,7 +51,8 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
   Color color;
   List<User> usersList = List<User>();
   Future<List<DocumentSnapshot>> _future;
-  bool _isLiked = false;
+  Map<String, bool> _isLiked = new Map<String, bool>();
+  Map<String, DocumentReference> _isLikedRef = new Map<String, DocumentReference>();
   List<String> followingUIDs = List<String>();
 
   Map<String, String> _chunkMap = new Map<String, String>();
@@ -63,11 +68,11 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
   String _targetLanguage;
   bool _fullTranslateEditable = false;
 
-  TextEditingController _fullTranslationTextController = new TextEditingController();
+  List<Post> _allPostsUnordered = new List<Post>();
+  List<Post> _allGooglePostsOrdered = new List<Post>();
+  List<Post> _allTwitterPostsOrdered = new List<Post>();
 
-//  final databaseReference = FirebaseDatabase.instance.reference();
-//  var userDatabaseReference;
-//  var articleDatabaseReference;
+  TextEditingController _fullTranslationTextController = new TextEditingController();
 
   @override
   void initState() {
@@ -78,6 +83,8 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
 
   _onAfterBuild(BuildContext context) async {
     await _fetchFeed();
+    await _fetchUserPosts();
+    await _fetchSupportedCampaigns();
     if (main.loggedIn == null) {
       Navigator.pushReplacement(context,
           MaterialPageRoute(builder: (context) {
@@ -93,7 +100,46 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
 
   }
 
+  /// get supported campaigns user ids and fetch their posts
+  /// to merge with feed
+  _fetchSupportedCampaigns() async {
+    List <DocumentSnapshot> userSupportedCampaigns =
+      await _repository.retrieveUserSupportedCampaigns(currentUser.uid);
+    await for (DocumentSnapshot snapshot in Stream.fromIterable(userSupportedCampaigns)) {
+      Campaign campaign = Campaign.fromMap(snapshot.data);
+      print("Current user supported campaigns");
+      print(campaign.currentUserUid); // currentUserUid in this case ownerUid
+      List<DocumentSnapshot> userSupportedCampaignsPosts =
+          await _repository.retrieveUserPosts(campaign.currentUserUid);
+      await for (DocumentSnapshot snap in Stream.fromIterable(userSupportedCampaignsPosts)) {
+        Post post = Post.fromMap(snap.data);
+        post.time = post.time.seconds;
+        String titleId = post.caption.replaceAll(" ", "");
+        String postId = titleId + "_" + post.time.toString();
+        _isLikedRef[postId] = snap.reference;
+        _checkLiked(postId);
+       _allPostsUnordered.add(post);
+      }
+    }
+  }
+
+  /// get current user posts to merge with feed
+  _fetchUserPosts() async {
+    List<DocumentSnapshot> posts =
+      await _repository.retrieveUserPosts(currentUser.uid);
+    await for (DocumentSnapshot snapshot in Stream.fromIterable(posts)) {
+      Post post = Post.fromMap(snapshot.data);
+      post.time = post.time.seconds;
+      String titleId = post.caption.replaceAll(" ", "");
+      String postId = titleId + "_" + post.time.toString();
+      _isLikedRef[postId] = snapshot.reference;
+      _checkLiked(postId);
+      _allPostsUnordered.add(post);
+    }
+  }
+
   void _fetchNewsFeed() async {
+    List<DocumentSnapshot> snapshot = await _repository.fetchGoogleNews();
     var response;
     response = await http.get(
         Uri.encodeFull('https://newsapi.org/v2/top-headlines?sources=google-news&language=en'),
@@ -101,15 +147,54 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
           "Accept": "application/json",
           "X-Api-Key": "ab31ce4a49814a27bbb16dd5c5c06608"
         });
-    // TODO save to db
-//    userDatabaseReference = databaseReference.child(globalStore.user.id);
-//    articleDatabaseReference = userDatabaseReference.child('articles');
-//    var snap = await articleDatabaseReference.once();
+    // save to db
+    var jsonData = json.decode(response.body);
+    await for (var each in Stream.fromIterable(jsonData["articles"])) {
+      bool exist = false;
+      String title = each["title"];
+      String urlToImage = each["urlToImage"];
+      String description = each["description"];
+      String titleId = title.replaceAll(" ", "");
+      String publishedAt = each["publishedAt"];
+      var t = (DateTime.parse(publishedAt.replaceFirst("T", " ")).millisecondsSinceEpoch / 1000).round();
+      String postId = titleId + "_" + t.toString();
+
+      await for (DocumentSnapshot news in Stream.fromIterable(snapshot)) {
+        if (news.data["postId"] != null && news.data["postId"] == postId) {
+          exist = true;
+          _isLikedRef[postId] = news.reference;
+        }
+      }
+      if (!exist) {
+        print("need to insert: " + postId);
+       DocumentReference reference = await _repository.saveGoogleNewsToStorage(postId, urlToImage, title, publishedAt, description);
+        _isLikedRef[postId] = reference;
+      }
+
+      _checkLiked(postId);
+
+      /// merge user posts, news feed and supported posts
+      Post post = new Post(
+        currentUserUid: "",
+        imgUrl: urlToImage,
+        caption: title,
+        text: description,
+        location: "",
+        time: t, // parse to unix seconds
+        postOwnerName: "google",
+        postOwnerPhotoUrl: "google"
+      );
+
+      _allPostsUnordered.add(post);
+
+    }
+
+    /// sort _allPostsUnordered
+    _allPostsUnordered.sort((a, b) => b.time.compareTo(a.time));
+
     if (mounted) {
       this.setState(() {
-        data = json.decode(response.body);
-//        snapshot = snap;
-
+        _allGooglePostsOrdered = _allPostsUnordered;
         _loadingVisible = false;
         _feedVisible = true;
       });
@@ -117,13 +202,57 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
   }
 
   void _fetchTweets() async {
+    List<DocumentSnapshot> snapshot = await _repository.fetchTwitterNews(currentUser.uid);
     var response;
     response = await twitter.getHomeTimeline();
+    var jsonData = json.decode(response.body);
+    await for (var each in Stream.fromIterable(jsonData)) {
+      bool exist = false;
+      String title = each['user']['name'];
+      String urlToImage = each['user']['profile_image_url_https'] ?? '';
+      String description = each['full_text'];
+      String titleId = title.replaceAll(" ", "");
+      DateTime date = _parseTweetDate(each['created_at']);
+      String publishedAt = date.toIso8601String();
+      var t = (date.millisecondsSinceEpoch / 1000).round();
+      String postId = titleId + "_" + t.toString();
+
+      await for (DocumentSnapshot tweets in Stream.fromIterable(snapshot)) {
+        if (tweets.data["postId"] != null && tweets.data["postId"] == postId) {
+          exist = true;
+          _isLikedRef[postId] = tweets.reference;
+        }
+      }
+      if (!exist) {
+        print("need to insert: " + postId);
+        DocumentReference reference = await _repository.saveTwitterNewsToStorage(currentUser.uid, postId, urlToImage, title, publishedAt, description);
+        _isLikedRef[postId] = reference;
+      }
+
+      _checkLiked(postId);
+
+      /// merge user posts, news feed and supported posts
+      Post post = new Post(
+          currentUserUid: "",
+          imgUrl: urlToImage,
+          caption: title,
+          text: description,
+          location: "",
+          time: t, // parse to unix seconds
+          postOwnerName: "twitter",
+          postOwnerPhotoUrl: "twitter"
+      );
+
+      _allPostsUnordered.add(post);
+
+    }
+
+    /// sort _allPostsUnordered
+    _allPostsUnordered.sort((a, b) => b.time.compareTo(a.time));
+
     if (mounted) {
       this.setState(() {
-        data = json.decode(response.body);
-        print(data[0]);
-//        snapshot = snap;
+        _allTwitterPostsOrdered = _allPostsUnordered;
         _loadingVisible = false;
         _feedVisible = true;
       });
@@ -706,14 +835,8 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
         ],
       ),
       body:
-//      currentUser != null &&
-//          ?
-//            Padding(
-//              padding: const EdgeInsets.only(top: 4.0),
-//              child: postImagesWidget(),
-//            )
           main.isGoogle ?
-            data != null && data["articles"].length != 0 ?
+            _allGooglePostsOrdered != null && _allGooglePostsOrdered.length != 0 ?
               Stack(
                 children: <Widget>[
                   _googleStack(),
@@ -730,7 +853,7 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                 ),
               )
            :  /// is Twitter
-              data != null && data.length != 0 ?
+              _allTwitterPostsOrdered != null && _allTwitterPostsOrdered.length != 0 ?
               Stack(
                 children: <Widget>[
                   _twitterStack(),
@@ -749,6 +872,11 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           print("Action button pressed");
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: ((context) => ComunoAddScreen(
+                  ))));
         },
         elevation: 10.0,
         isExtended: true,
@@ -772,17 +900,37 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
     );
   }
 
+  _checkLiked(String postId) {
+    _repository.checkIfUserLikedOrNot(currentUser.uid, _isLikedRef[postId]).then((isLiked) {
+      if (!isLiked) {
+        setState(() {
+          _isLiked[postId] = false;
+        });
+      } else {
+        setState(() {
+          _isLiked[postId] = true;
+        });
+      }
+    });
+  }
+
   Widget _googleStack() {
     return AnimatedOpacity(
       opacity: _feedVisible ? 1.0 : 0.0,
       duration: Duration(milliseconds: 1000),
       child: ListView.builder(
-        itemCount: data == null ? 0 : data["articles"].length,
+        itemCount: _allGooglePostsOrdered == null ? 0 : _allGooglePostsOrdered.length,
         padding: new EdgeInsets.all(8.0),
         itemBuilder: (BuildContext context, int index) {
+
+          // post id for
+          String title = _allGooglePostsOrdered[index].caption;
+          String titleId = title.replaceAll(" ", "");
+          String publishedAt = _allGooglePostsOrdered[index].time.toString();
+          String postId = titleId + "_" + publishedAt.toString();
+
           return new GestureDetector(
             child: new Card(
-//                          color: _dropdownShownIndex != null || _dropdownChunkUuid != null ? Colors.red,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(15.0),
               ),
@@ -805,10 +953,8 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                   child: ClipRRect(
                                       borderRadius: BorderRadius.circular(80),
                                       clipBehavior: Clip.hardEdge,
-                                      child: data["articles"][index]
-                                      ["urlToImage"] != null ? new Image.network(
-                                        data["articles"][index]
-                                        ["urlToImage"],
+                                      child: _allGooglePostsOrdered[index].imgUrl != null ? new Image.network(
+                                        _allGooglePostsOrdered[index].imgUrl,
                                         fit: BoxFit.cover,
                                       ) : Container(
                                         decoration: BoxDecoration(
@@ -832,6 +978,30 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       mainAxisAlignment: MainAxisAlignment.start,
                                       children: <Widget>[
+                                        _allGooglePostsOrdered[index].postOwnerName != 'google' ? new Padding(
+                                          padding: new EdgeInsets.only(
+                                              left: 4.0,
+                                              right: 35.0,
+                                              bottom: 4.0,
+                                              top: 8.0),
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                      builder: ((context) => ComunoProfileThirdScreen(
+                                                        documentReference: _isLikedRef[postId],
+                                                        user: currentUser
+                                                      ))));
+                                            },
+                                            child: new Text(
+                                              _allGooglePostsOrdered[index].postOwnerName,
+                                              style: new TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          )
+                                        ) : Container(),
                                         new Padding(
                                           padding: new EdgeInsets.only(
                                               left: 4.0,
@@ -839,7 +1009,7 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                               bottom: 8.0,
                                               top: 8.0),
                                           child: new Text(
-                                            data["articles"][index]["title"],
+                                            _allGooglePostsOrdered[index].caption,
                                             style: new TextStyle(
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -851,8 +1021,9 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                               children: <Widget>[
                                                 Expanded(
                                                   child: new Text(
-                                                    timeago.format(DateTime.parse(data["articles"]
-                                                    [index]["publishedAt"])),
+//                                                    timeago.format(DateTime.parse(data["articles"]
+//                                                    [index]["publishedAt"])),
+                                                    timeago.format(new DateTime.fromMillisecondsSinceEpoch(_allGooglePostsOrdered[index].time * 1000)),
                                                     style: new TextStyle(
                                                       fontWeight: FontWeight.w400,
                                                       color: Colors.grey[600],
@@ -883,8 +1054,7 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                           ),
                                           onPressed: () {
                                             // TODO: check if we hold a suggestion
-                                            _translateAll(data["articles"][index]
-                                            ["description"]);
+                                            _translateAll(_allGooglePostsOrdered[index].text);
                                             _toggleDropdown(index);
                                           }
                                       ),
@@ -911,9 +1081,8 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                               left: 8.0,
                                               right: 8.0,
                                               bottom: 8.0),
-                                          child: _buildDescription(data["articles"][index]
-                                          ["description"], index, data["articles"][index]
-                                          ["publishedAt"])
+                                          child: _buildDescription(
+                                              _allGooglePostsOrdered[index].text, index, _allGooglePostsOrdered[index].time.toString())
                                       ),
                                     ],
                                   ),
@@ -950,18 +1119,57 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                     children: <Widget>[
                                       Padding(
                                         padding: EdgeInsets.only(right: 10),
-                                        child: Icon(
-                                          Icons.thumb_up,
-                                          size: 16,
-                                          color: Colors.grey,
-                                        ),
+                                        child: GestureDetector(
+                                            child: _isLiked.containsKey(postId) && _isLiked[postId]
+                                                ? Icon(
+                                              Icons.thumb_up,
+                                              size: 16,
+                                              color: Color(0xFF2AB1F3),
+                                            )
+                                                : Icon(
+                                              Icons.thumb_up,
+                                              size: 16,
+                                              color: Colors.grey,
+                                            ),
+                                            onTap: () {
+                                              if (!_isLiked.containsKey(postId) || !_isLiked[postId]) {
+                                                setState(() {
+                                                  _isLiked[postId] = true;
+                                                });
+                                                // saveLikeValue(_isLiked);
+                                                postLike(_isLikedRef[postId], currentUser);
+                                              } else {
+                                                setState(() {
+                                                  _isLiked[postId] = false;
+                                                });
+                                                //saveLikeValue(_isLiked);
+                                                postUnlike(_isLikedRef[postId], currentUser);
+                                              }
+                                            }),
                                       ),
-                                      Text(
-                                        "Like",
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                            color: Colors.grey
+                                      GestureDetector(
+                                        onTap: () {
+                                          if (!_isLiked.containsKey(postId) || !_isLiked[postId]) {
+                                            setState(() {
+                                              _isLiked[postId] = true;
+                                            });
+                                            // saveLikeValue(_isLiked);
+                                              postLike(_isLikedRef[postId], currentUser);
+                                          } else {
+                                            setState(() {
+                                              _isLiked[postId] = false;
+                                            });
+                                            //saveLikeValue(_isLiked);
+                                            postUnlike(_isLikedRef[postId], currentUser);
+                                          }
+                                        },
+                                        child: Text(
+                                          "Like",
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: _isLiked.containsKey(postId) && _isLiked[postId] ? Color(0xFF2AB1F3) : Colors.grey
+                                          ),
                                         ),
                                       )
                                     ],
@@ -980,29 +1188,34 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                   ),
                                 ),
                               ),
-                              child: Padding(
-                                padding: EdgeInsets.only(top: 10, bottom: 5),
-                                child: Container(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: <Widget>[
-                                      Padding(
-                                        padding: EdgeInsets.only(right: 10),
-                                        child: Icon(
-                                          Icons.insert_comment, size: 16,
-                                          color: Colors.grey,
+                              child: GestureDetector(
+                                onTap: () {
+                                  _showComments(_isLikedRef[postId], currentUser);
+                                },
+                                child: Padding(
+                                  padding: EdgeInsets.only(top: 10, bottom: 5),
+                                  child: Container(
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: <Widget>[
+                                        Padding(
+                                          padding: EdgeInsets.only(right: 10),
+                                          child: Icon(
+                                            Icons.insert_comment, size: 16,
+                                            color: Colors.grey,
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        "Comments",
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                            color: Colors.grey
-                                        ),
-                                      )
-                                    ],
+                                        Text(
+                                          "Comments",
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: Colors.grey
+                                          ),
+                                        )
+                                      ],
+                                    ),
                                   ),
                                 ),
                               )
@@ -1214,9 +1427,16 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
       opacity: _feedVisible ? 1.0 : 0.0,
       duration: Duration(milliseconds: 1000),
       child: ListView.builder(
-        itemCount: data == null ? 0 : data.length,
+        itemCount: _allTwitterPostsOrdered == null ? 0 : _allTwitterPostsOrdered.length,
         padding: new EdgeInsets.all(8.0),
         itemBuilder: (BuildContext context, int index) {
+
+          // post id for
+          String title = _allTwitterPostsOrdered[index].caption;
+          String titleId = title.replaceAll(" ", "");
+          String publishedAt = _allTwitterPostsOrdered[index].time.toString();
+          String postId = titleId + "_" + publishedAt.toString();
+
           return new GestureDetector(
             child: new Card(
               shape: RoundedRectangleBorder(
@@ -1242,7 +1462,7 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                     borderRadius: BorderRadius.circular(80),
                                     clipBehavior: Clip.hardEdge,
                                     child: new Image.network(
-                                      data[index]['user']['profile_image_url_https'] ?? '',
+                                      _allTwitterPostsOrdered[index].imgUrl ?? '',
                                       fit: BoxFit.cover,
                                     ),
                                   )
@@ -1259,6 +1479,30 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       mainAxisAlignment: MainAxisAlignment.start,
                                       children: <Widget>[
+                                        _allTwitterPostsOrdered[index].postOwnerName != 'twitter' ? new Padding(
+                                            padding: new EdgeInsets.only(
+                                                left: 4.0,
+                                                right: 35.0,
+                                                bottom: 4.0,
+                                                top: 8.0),
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                        builder: ((context) => ComunoProfileThirdScreen(
+                                                            documentReference: _isLikedRef[postId],
+                                                            user: currentUser
+                                                        ))));
+                                              },
+                                              child: new Text(
+                                                _allTwitterPostsOrdered[index].postOwnerName,
+                                                style: new TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            )
+                                        ) : Container(),
                                         new Padding(
                                           padding: new EdgeInsets.only(
                                               left: 4.0,
@@ -1266,7 +1510,7 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                               bottom: 8.0,
                                               top: 8.0),
                                           child: new Text(
-                                            data[index]['user']['name'],
+                                            _allTwitterPostsOrdered[index].caption,
                                             style: new TextStyle(
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -1278,9 +1522,7 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                               children: <Widget>[
                                                 Expanded(
                                                   child: new Text(
-                                                    timeago.format(_parseTweetDate(
-                                                        data[index]['created_at']
-                                                    )),
+                                                    timeago.format(new DateTime.fromMillisecondsSinceEpoch(_allTwitterPostsOrdered[index].time * 1000)),
                                                     style: new TextStyle(
                                                       fontWeight: FontWeight.w400,
                                                       color: Colors.grey[600],
@@ -1307,8 +1549,9 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                             Icons.language,
                                           ),
                                           onPressed: () {
-                                            _translateAll(data[index]
-                                            ['full_text']);
+                                            _translateAll(
+                                                _allTwitterPostsOrdered[index].text
+                                            );
                                             _toggleDropdown(index);
                                           }
                                       ),
@@ -1335,8 +1578,11 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                               left: 8.0,
                                               right: 8.0,
                                               bottom: 8.0),
-                                          child: _buildDescription(data[index]
-                                          ['full_text'], index, data[index]['created_at'])
+                                          child: _buildDescription(
+                                              _allTwitterPostsOrdered[index].text,
+                                              index,
+                                              _allTwitterPostsOrdered[index].time.toString()
+                                          )
                                       ),
                                     ],
                                   ),
@@ -1373,18 +1619,57 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                     children: <Widget>[
                                       Padding(
                                         padding: EdgeInsets.only(right: 10),
-                                        child: Icon(
-                                          Icons.thumb_up,
-                                          size: 16,
-                                          color: Colors.grey,
-                                        ),
+                                        child: GestureDetector(
+                                            child: _isLiked.containsKey(postId) && _isLiked[postId]
+                                                ? Icon(
+                                              Icons.thumb_up,
+                                              size: 16,
+                                              color: Color(0xFF2AB1F3),
+                                            )
+                                                : Icon(
+                                              Icons.thumb_up,
+                                              size: 16,
+                                              color: Colors.grey,
+                                            ),
+                                            onTap: () {
+                                              if (!_isLiked.containsKey(postId) || !_isLiked[postId]) {
+                                                setState(() {
+                                                  _isLiked[postId] = true;
+                                                });
+                                                // saveLikeValue(_isLiked);
+                                                postLike(_isLikedRef[postId], currentUser);
+                                              } else {
+                                                setState(() {
+                                                  _isLiked[postId] = false;
+                                                });
+                                                //saveLikeValue(_isLiked);
+                                                postUnlike(_isLikedRef[postId], currentUser);
+                                              }
+                                            }),
                                       ),
-                                      Text(
-                                        "Like",
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                            color: Colors.grey
+                                      GestureDetector(
+                                        onTap: () {
+                                          if (!_isLiked.containsKey(postId) || !_isLiked[postId]) {
+                                            setState(() {
+                                              _isLiked[postId] = true;
+                                            });
+                                            // saveLikeValue(_isLiked);
+                                            postLike(_isLikedRef[postId], currentUser);
+                                          } else {
+                                            setState(() {
+                                              _isLiked[postId] = false;
+                                            });
+                                            //saveLikeValue(_isLiked);
+                                            postUnlike(_isLikedRef[postId], currentUser);
+                                          }
+                                        },
+                                        child: Text(
+                                          "Like",
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: _isLiked.containsKey(postId) && _isLiked[postId] ? Color(0xFF2AB1F3) : Colors.grey
+                                          ),
                                         ),
                                       )
                                     ],
@@ -1403,29 +1688,34 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
                                   ),
                                 ),
                               ),
-                              child: Padding(
-                                padding: EdgeInsets.only(top: 10, bottom: 5),
-                                child: Container(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: <Widget>[
-                                      Padding(
-                                        padding: EdgeInsets.only(right: 10),
-                                        child: Icon(
-                                          Icons.insert_comment, size: 16,
-                                          color: Colors.grey,
+                              child: GestureDetector(
+                                onTap: () {
+                                  _showComments(_isLikedRef[postId], currentUser);
+                                },
+                                child: Padding(
+                                  padding: EdgeInsets.only(top: 10, bottom: 5),
+                                  child: Container(
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: <Widget>[
+                                        Padding(
+                                          padding: EdgeInsets.only(right: 10),
+                                          child: Icon(
+                                            Icons.insert_comment, size: 16,
+                                            color: Colors.grey,
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        "Comments",
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                            color: Colors.grey
-                                        ),
-                                      )
-                                    ],
+                                        Text(
+                                          "Comments",
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: Colors.grey
+                                          ),
+                                        )
+                                      ],
+                                    ),
                                   ),
                                 ),
                               )
@@ -1443,261 +1733,261 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
     );
   }
 
-  Widget postImagesWidget() {
-    return FutureBuilder(
-      future: _future,
-      builder: ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
-        if (snapshot.hasData) {
-          print("FFFF : ${followingUser?.uid}");
-          if (snapshot.connectionState == ConnectionState.done) {
-            return ListView.builder(
-                //shrinkWrap: true,
-                itemCount: snapshot.data.length,
-                itemBuilder: ((context, index) => listItem(
-                      list: snapshot.data,
-                      index: index,
-                      user: followingUser,
-                      currentUser: currentUser,
-                    )));
-          } else {
-            return Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-        } else {
-          return Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-      }),
-    );
-  }
+//  Widget postImagesWidget() {
+//    return FutureBuilder(
+//      future: _future,
+//      builder: ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
+//        if (snapshot.hasData) {
+//          print("FFFF : ${followingUser?.uid}");
+//          if (snapshot.connectionState == ConnectionState.done) {
+//            return ListView.builder(
+//                //shrinkWrap: true,
+//                itemCount: snapshot.data.length,
+//                itemBuilder: ((context, index) => listItem(
+//                      list: snapshot.data,
+//                      index: index,
+//                      user: followingUser,
+//                      currentUser: currentUser,
+//                    )));
+//          } else {
+//            return Center(
+//              child: CircularProgressIndicator(),
+//            );
+//          }
+//        } else {
+//          return Center(
+//            child: CircularProgressIndicator(),
+//          );
+//        }
+//      }),
+//    );
+//  }
 
-  Widget listItem(
-      {List<DocumentSnapshot> list, User user, User currentUser, int index}) {
-    print("dadadadad : ${user?.uid}");
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  InkWell(
-                    onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: ((context) => ComunoFriendProfileScreen(
-                                    name: list[index].data['postOwnerName'],
-                                  ))));
-                    },
-                    child: new Container(
-                      height: 40.0,
-                      width: 40.0,
-                      decoration: new BoxDecoration(
-                        shape: BoxShape.circle,
-                        image: new DecorationImage(
-                            fit: BoxFit.fill,
-                            image: new NetworkImage(
-                                list[index].data['postOwnerPhotoUrl'])),
-                      ),
-                    ),
-                  ),
-                  new SizedBox(
-                    width: 10.0,
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: ((context) =>
-                                      ComunoFriendProfileScreen(
-                                        name: list[index].data['postOwnerName'],
-                                      ))));
-                        },
-                        child: new Text(
-                          list[index].data['postOwnerName'],
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      list[index].data['location'] != null
-                          ? new Text(
-                              list[index].data['location'],
-                              style: TextStyle(color: Colors.grey),
-                            )
-                          : Container(),
-                    ],
-                  )
-                ],
-              ),
-              new IconButton(
-                icon: Icon(Icons.more_vert),
-                onPressed: null,
-              )
-            ],
-          ),
-        ),
-        CachedNetworkImage(
-          imageUrl: list[index].data['imgUrl'],
-          placeholder: ((context, s) => Center(
-                child: CircularProgressIndicator(),
-              )),
-          width: 125.0,
-          height: 250.0,
-          fit: BoxFit.cover,
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              new Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: <Widget>[
-                  GestureDetector(
-                      child: _isLiked
-                          ? Icon(
-                              Icons.favorite,
-                              color: Colors.red,
-                            )
-                          : Icon(
-                              FontAwesomeIcons.heart,
-                              color: null,
-                            ),
-                      onTap: () {
-                        if (!_isLiked) {
-                          setState(() {
-                            _isLiked = true;
-                          });
-                          // saveLikeValue(_isLiked);
-                          postLike(list[index].reference, currentUser);
-                        } else {
-                          setState(() {
-                            _isLiked = false;
-                          });
-                          //saveLikeValue(_isLiked);
-                          postUnlike(list[index].reference, currentUser);
-                        }
-
-                        // _repository.checkIfUserLikedOrNot(_user.uid, snapshot.data[index].reference).then((isLiked) {
-                        //   print("reef : ${snapshot.data[index].reference.path}");
-                        //   if (!isLiked) {
-                        //     setState(() {
-                        //       icon = Icons.favorite;
-                        //       color = Colors.red;
-                        //     });
-                        //     postLike(snapshot.data[index].reference);
-                        //   } else {
-
-                        //     setState(() {
-                        //       icon =FontAwesomeIcons.heart;
-                        //       color = null;
-                        //     });
-                        //     postUnlike(snapshot.data[index].reference);
-                        //   }
-                        // });
-                        // updateValues(
-                        //     snapshot.data[index].reference);
-                      }),
-                  new SizedBox(
-                    width: 16.0,
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: ((context) => CommentsScreen(
-                                    documentReference: list[index].reference,
-                                    user: currentUser,
-                                  ))));
-                    },
-                    child: new Icon(
-                      FontAwesomeIcons.comment,
-                    ),
-                  ),
-                  new SizedBox(
-                    width: 16.0,
-                  ),
-                  new Icon(FontAwesomeIcons.paperPlane),
-                ],
-              ),
-              new Icon(FontAwesomeIcons.bookmark)
-            ],
-          ),
-        ),
-        FutureBuilder(
-          future: _repository.fetchPostLikes(list[index].reference),
-          builder:
-              ((context, AsyncSnapshot<List<DocumentSnapshot>> likesSnapshot) {
-            if (likesSnapshot.hasData) {
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: ((context) => LikesScreen(
-                                user: currentUser,
-                                documentReference: list[index].reference,
-                              ))));
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: likesSnapshot.data.length > 1
-                      ? Text(
-                          "Liked by ${likesSnapshot.data[0].data['ownerName']} and ${(likesSnapshot.data.length - 1).toString()} others",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        )
-                      : Text(likesSnapshot.data.length == 1
-                          ? "Liked by ${likesSnapshot.data[0].data['ownerName']}"
-                          : "0 Likes"),
-                ),
-              );
-            } else {
-              return Center(child: CircularProgressIndicator());
-            }
-          }),
-        ),
-        Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: list[index].data['caption'] != null
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Wrap(
-                        children: <Widget>[
-                          Text(list[index].data['postOwnerName'],
-                              style: TextStyle(fontWeight: FontWeight.bold)),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8.0),
-                            child: Text(list[index].data['caption']),
-                          )
-                        ],
-                      ),
-                      Padding(
-                          padding: const EdgeInsets.only(top: 4.0),
-                          child: commentWidget(list[index].reference))
-                    ],
-                  )
-                : commentWidget(list[index].reference)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Text("1 Day Ago", style: TextStyle(color: Colors.grey)),
-        )
-      ],
-    );
-  }
+//  Widget listItem(
+//      {List<DocumentSnapshot> list, User user, User currentUser, int index}) {
+//    print("dadadadad : ${user?.uid}");
+//    return Column(
+//      mainAxisAlignment: MainAxisAlignment.start,
+//      mainAxisSize: MainAxisSize.min,
+//      crossAxisAlignment: CrossAxisAlignment.stretch,
+//      children: <Widget>[
+//        Padding(
+//          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 8.0),
+//          child: Row(
+//            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//            children: <Widget>[
+//              Row(
+//                children: <Widget>[
+//                  InkWell(
+//                    onTap: () {
+//                      Navigator.push(
+//                          context,
+//                          MaterialPageRoute(
+//                              builder: ((context) => ComunoFriendProfileScreen(
+//                                    name: list[index].data['postOwnerName'],
+//                                  ))));
+//                    },
+//                    child: new Container(
+//                      height: 40.0,
+//                      width: 40.0,
+//                      decoration: new BoxDecoration(
+//                        shape: BoxShape.circle,
+//                        image: new DecorationImage(
+//                            fit: BoxFit.fill,
+//                            image: new NetworkImage(
+//                                list[index].data['postOwnerPhotoUrl'])),
+//                      ),
+//                    ),
+//                  ),
+//                  new SizedBox(
+//                    width: 10.0,
+//                  ),
+//                  Column(
+//                    crossAxisAlignment: CrossAxisAlignment.start,
+//                    children: <Widget>[
+//                      InkWell(
+//                        onTap: () {
+//                          Navigator.push(
+//                              context,
+//                              MaterialPageRoute(
+//                                  builder: ((context) =>
+//                                      ComunoFriendProfileScreen(
+//                                        name: list[index].data['postOwnerName'],
+//                                      ))));
+//                        },
+//                        child: new Text(
+//                          list[index].data['postOwnerName'],
+//                          style: TextStyle(fontWeight: FontWeight.bold),
+//                        ),
+//                      ),
+//                      list[index].data['location'] != null
+//                          ? new Text(
+//                              list[index].data['location'],
+//                              style: TextStyle(color: Colors.grey),
+//                            )
+//                          : Container(),
+//                    ],
+//                  )
+//                ],
+//              ),
+//              new IconButton(
+//                icon: Icon(Icons.more_vert),
+//                onPressed: null,
+//              )
+//            ],
+//          ),
+//        ),
+//        CachedNetworkImage(
+//          imageUrl: list[index].data['imgUrl'],
+//          placeholder: ((context, s) => Center(
+//                child: CircularProgressIndicator(),
+//              )),
+//          width: 125.0,
+//          height: 250.0,
+//          fit: BoxFit.cover,
+//        ),
+//        Padding(
+//          padding: const EdgeInsets.all(16.0),
+//          child: Row(
+//            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//            children: <Widget>[
+//              new Row(
+//                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//                children: <Widget>[
+//                  GestureDetector(
+//                      child: _isLiked
+//                          ? Icon(
+//                              Icons.favorite,
+//                              color: Colors.red,
+//                            )
+//                          : Icon(
+//                              FontAwesomeIcons.heart,
+//                              color: null,
+//                            ),
+//                      onTap: () {
+//                        if (!_isLiked) {
+//                          setState(() {
+//                            _isLiked = true;
+//                          });
+//                          // saveLikeValue(_isLiked);
+//                          postLike(list[index].reference, currentUser);
+//                        } else {
+//                          setState(() {
+//                            _isLiked = false;
+//                          });
+//                          //saveLikeValue(_isLiked);
+//                          postUnlike(list[index].reference, currentUser);
+//                        }
+//
+//                        // _repository.checkIfUserLikedOrNot(_user.uid, snapshot.data[index].reference).then((isLiked) {
+//                        //   print("reef : ${snapshot.data[index].reference.path}");
+//                        //   if (!isLiked) {
+//                        //     setState(() {
+//                        //       icon = Icons.favorite;
+//                        //       color = Colors.red;
+//                        //     });
+//                        //     postLike(snapshot.data[index].reference);
+//                        //   } else {
+//
+//                        //     setState(() {
+//                        //       icon =FontAwesomeIcons.heart;
+//                        //       color = null;
+//                        //     });
+//                        //     postUnlike(snapshot.data[index].reference);
+//                        //   }
+//                        // });
+//                        // updateValues(
+//                        //     snapshot.data[index].reference);
+//                      }),
+//                  new SizedBox(
+//                    width: 16.0,
+//                  ),
+//                  GestureDetector(
+//                    onTap: () {
+//                      Navigator.push(
+//                          context,
+//                          MaterialPageRoute(
+//                              builder: ((context) => CommentsScreen(
+//                                    documentReference: list[index].reference,
+//                                    user: currentUser,
+//                                  ))));
+//                    },
+//                    child: new Icon(
+//                      FontAwesomeIcons.comment,
+//                    ),
+//                  ),
+//                  new SizedBox(
+//                    width: 16.0,
+//                  ),
+//                  new Icon(FontAwesomeIcons.paperPlane),
+//                ],
+//              ),
+//              new Icon(FontAwesomeIcons.bookmark)
+//            ],
+//          ),
+//        ),
+//        FutureBuilder(
+//          future: _repository.fetchPostLikes(list[index].reference),
+//          builder:
+//              ((context, AsyncSnapshot<List<DocumentSnapshot>> likesSnapshot) {
+//            if (likesSnapshot.hasData) {
+//              return GestureDetector(
+//                onTap: () {
+//                  Navigator.push(
+//                      context,
+//                      MaterialPageRoute(
+//                          builder: ((context) => LikesScreen(
+//                                user: currentUser,
+//                                documentReference: list[index].reference,
+//                              ))));
+//                },
+//                child: Padding(
+//                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+//                  child: likesSnapshot.data.length > 1
+//                      ? Text(
+//                          "Liked by ${likesSnapshot.data[0].data['ownerName']} and ${(likesSnapshot.data.length - 1).toString()} others",
+//                          style: TextStyle(fontWeight: FontWeight.bold),
+//                        )
+//                      : Text(likesSnapshot.data.length == 1
+//                          ? "Liked by ${likesSnapshot.data[0].data['ownerName']}"
+//                          : "0 Likes"),
+//                ),
+//              );
+//            } else {
+//              return Center(child: CircularProgressIndicator());
+//            }
+//          }),
+//        ),
+//        Padding(
+//            padding:
+//                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+//            child: list[index].data['caption'] != null
+//                ? Column(
+//                    crossAxisAlignment: CrossAxisAlignment.start,
+//                    children: <Widget>[
+//                      Wrap(
+//                        children: <Widget>[
+//                          Text(list[index].data['postOwnerName'],
+//                              style: TextStyle(fontWeight: FontWeight.bold)),
+//                          Padding(
+//                            padding: const EdgeInsets.only(left: 8.0),
+//                            child: Text(list[index].data['caption']),
+//                          )
+//                        ],
+//                      ),
+//                      Padding(
+//                          padding: const EdgeInsets.only(top: 4.0),
+//                          child: commentWidget(list[index].reference))
+//                    ],
+//                  )
+//                : commentWidget(list[index].reference)),
+//        Padding(
+//          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+//          child: Text("1 Day Ago", style: TextStyle(color: Colors.grey)),
+//        )
+//      ],
+//    );
+//  }
 
   Widget commentWidget(DocumentReference reference) {
     return FutureBuilder(
@@ -1732,6 +2022,7 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
         ownerPhotoUrl: currentUser.photoUrl,
         ownerUid: currentUser.uid,
         timeStamp: FieldValue.serverTimestamp());
+    print(_like.toMap(_like));
     reference
         .collection('likes')
         .document(currentUser.uid)
@@ -1749,6 +2040,16 @@ class _ComunoFeedScreenState extends State<ComunoFeedScreen> {
         .then((value) {
       print("Post Unliked");
     });
+  }
+
+  void _showComments(DocumentReference reference, User currentUser) {
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: ((context) => CommentsScreen(
+              documentReference: reference,
+              user: currentUser,
+            ))));
   }
 
   /// Removes the timezone to allow [DateTime] to parse the string.

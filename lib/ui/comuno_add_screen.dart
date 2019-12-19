@@ -29,7 +29,7 @@ class _ComunoAddScreenState extends State<ComunoAddScreen> {
     action == 'Gallery'
         ? selectedImage =
             await ImagePicker.pickImage(source: ImageSource.gallery)
-        : await ImagePicker.pickImage(source: ImageSource.camera);
+        : selectedImage = await ImagePicker.pickImage(source: ImageSource.camera);
 
     return selectedImage;
   }
@@ -82,14 +82,24 @@ class _ComunoAddScreenState extends State<ComunoAddScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          color: Colors.white,
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
         backgroundColor: Color(0xFF2AB1F3),
-        title: Text('Add Photo'),
+        title: Text(
+            'Add Photo',
+          style: TextStyle(color: Colors.white),
+        ),
       ),
       body: Center(
           child: RaisedButton.icon(
         splashColor: Colors.yellow,
         shape: StadiumBorder(),
-        color: Colors.black,
+        color: Color(0xFF2AB1F3),
         label: Text(
           'Upload Image',
           style: TextStyle(color: Colors.white),

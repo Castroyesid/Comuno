@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -16,16 +15,20 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:comuno/resources/translator.dart' as translator;
 import 'package:comuno/models/translation.dart';
+import 'package:comuno/models/patron.dart';
+import 'package:comuno/models/campaign.dart';
 import 'package:overlay_container/overlay_container.dart';
 import 'package:flutter/services.dart';
-import 'package:comuno/ui/comuno_add_campaign_screen.dart';
 
-class ComunoProfileScreen extends StatefulWidget {
+class ComunoProfileThirdScreen extends StatefulWidget {
+  final DocumentReference documentReference;
+  final User user;
+  ComunoProfileThirdScreen({this.documentReference, this.user});
   @override
-  _ComunoProfileScreenState createState() => _ComunoProfileScreenState();
+  _ComunoProfileThirdScreenState createState() => _ComunoProfileThirdScreenState();
 }
 
-class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
+class _ComunoProfileThirdScreenState extends State<ComunoProfileThirdScreen> {
   var _repository = Repository();
   Color _gridColor = Color(0xFF2AB1F3);
   Color _overviewColor = Color(0xFF2AB1F3);
@@ -44,6 +47,9 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
   Future<List<DocumentSnapshot>> _future;
   Future<List<DocumentSnapshot>> _myCampaignsFuture;
   Future<List<DocumentSnapshot>> _supportedCampaignsFuture;
+  Map<String, DocumentReference> _campaignsRef = new Map<String, DocumentReference>();
+  Map<String, DocumentReference> _myCampaignsRef = new Map<String, DocumentReference>();
+  Map<String, String> _linkedCampaignIds = new Map<String, String>();
   bool _isLiked = false;
 
   List<dynamic> _campaigns = new List<dynamic>();
@@ -55,6 +61,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
   String _targetLanguage;
   int _dropdownShownIndex;
   String _dropdownChunkUuid;
+  bool _following = false; // TODO check if following
 
   bool _fullTranslateEditable = false;
 
@@ -69,9 +76,6 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
   }
 
   _onAfterBuild(BuildContext context) {
-//    for (dynamic campaign in _campaignsData) {
-//      _campaigns.add(campaign);
-//    }
 
   }
 
@@ -81,21 +85,27 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
     setState(() {
       _user = user;
     });
-    print("user bio: ${_user.bio.length}");
-    _future = _repository.retrieveUserPosts(_user.uid);
+    _future = _repository.retrieveUserPosts(widget.user.uid);
     Stream posts = Stream.fromFuture(_future);
     await for (var post in posts) {
       print(post);
     }
     _myCampaignsFuture = _repository.retrieveUserCampaigns(_user.uid);
-    Stream campaigns = Stream.fromFuture(_myCampaignsFuture);
-    await for (var campaign in campaigns) {
-      print(campaign);
+    Stream campaigns = Stream.fromIterable(await _myCampaignsFuture);
+    print("My Campaigns");
+    await for (DocumentSnapshot campaign in campaigns) {
+      print(campaign.documentID);
+      _campaignsRef[campaign.documentID] = campaign.reference;
     }
     _supportedCampaignsFuture = _repository.retrieveUserSupportedCampaigns(_user.uid);
-    Stream supportedCampaigns = Stream.fromFuture(_supportedCampaignsFuture);
-    await for (var supportedCampaign in supportedCampaigns) {
-      print(supportedCampaign);
+    Stream supportedCampaigns = Stream.fromIterable(await _supportedCampaignsFuture);
+    print("Supported Campaigns");
+    await for (DocumentSnapshot supportedCampaign in supportedCampaigns) {
+      Campaign camp = Campaign.fromMap(supportedCampaign.data);
+      print(camp.campaignUid);
+      _campaignsRef[supportedCampaign.documentID] = supportedCampaign.reference;
+      _myCampaignsRef[camp.campaignUid] = supportedCampaign.reference; // where I'm patron
+      _linkedCampaignIds[camp.campaignUid] = supportedCampaign.documentID;
     }
     setState(() {
 
@@ -105,230 +115,228 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          backgroundColor: Color(0xFF2AB1F3),
-          centerTitle: true,
-          title: SizedBox(
-              height: 35.0,
-              child: Image.asset("assets/comuno_logo.png")
-          ),
-          actions: <Widget>[
-            new Padding(
-              padding: EdgeInsets.only(right: 0),
-              child: IconButton(
-                icon: Icon(Icons.exit_to_app),
-                color: Colors.white,
-                onPressed: () {
-                  _repository.signOut().then((v) {
-                    main.loggedIn = false;
-                    main.isGoogle = false;
-                    main.isTwitter = false;
-                    Navigator.pushReplacement(context,
-                        MaterialPageRoute(builder: (context) {
-                          return main.MyApp();
-                        }));
-                  });
-                },
-              ),
-            ),
-            new Padding(
-                padding: EdgeInsets.only(right: 15),
-              child: IconButton(
-                icon: Icon(Icons.settings),
-                color: Colors.white,
-                onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(
-                      builder: ((context) => new EditProfileScreen(
-                        photoUrl: _user.photoUrl,
-                        email: _user.email,
-                        bio: _user.bio,
-                        name: _user.displayName
-                      ))));
-                },
-              ),
-            )
-          ],
+      appBar: AppBar(
+        leading: IconButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          icon: Icon(Icons.arrow_back, color: Colors.white),
         ),
-        body: _user != null
-            ? ListView(
-          children: <Widget>[
-            Container(
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage("assets/background_def.jpg"),
-                  fit: BoxFit.cover,
-                ),
-              ),
-              height: MediaQuery.of(context).size.height * 0.25,
-              child: Stack(
-                children: <Widget>[
-                  Positioned(
-                    bottom: 0,
-                    left: 15,
-                    child: Tooltip(
-                      message: "Change background",
-                      child: IconButton(
-                        icon: Icon(Icons.add_circle_outline),
-                        color: Color(0xFF2AB1F3),
-                        onPressed: () => print("Add profile background picture pressed"),
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: Column(
-                      children: <Widget>[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            Padding(
-                              padding: const EdgeInsets.only(top: 30.0, left: 20.0),
-                              child: Container(
-                                  width: 80.0,
-                                  height: 80.0,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(80.0),
-                                    image: DecorationImage(
-                                        image: _user.photoUrl.isEmpty
-                                            ? AssetImage('assets/no_image.png')
-                                            : NetworkImage(_user.photoUrl),
-                                        fit: BoxFit.cover),
-                                  )
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            Padding(
-                              padding: const EdgeInsets.only(left: 25.0, top: 30.0),
-                              child: Text(_user.displayName,
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 24.0)),
-                            ),
-                          ],
-                        )
-                      ],
-                    ),
-                  ),
-
-                ],
+        backgroundColor: Color(0xFF2AB1F3),
+        centerTitle: true,
+        title: SizedBox(
+            height: 35.0,
+            child: Image.asset("assets/comuno_logo.png")
+        ),
+        actions: <Widget>[
+          Icon(Icons.settings)
+        ],
+      ),
+      body: widget.user != null
+          ? ListView(
+        children: <Widget>[
+          Container(
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage("assets/background_def.jpg"),
+                fit: BoxFit.cover,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(top: 0.0),
-              child: Column(
-                children: <Widget>[
-                  Container(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: <Widget>[
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                      width: _isOverviewActive ? 1.5 : 0,
-                                      color: _isOverviewActive ? Color(0xFF2AB1F3) :Colors.transparent
-                                  ),
-                                ),
-                                color: _isOverviewActive ? Colors.white70 : Colors.white30
-                            ),
-                            child: GestureDetector(
-                              child: Center(
-                                child: Padding(
-                                  padding: EdgeInsets.only(top: 14, bottom: 14),
-                                  child: Text(
-                                    "Overview",
-                                    style: TextStyle(
-                                        color: _overviewColor,
-                                      fontWeight: FontWeight.bold
-                                    ),
-                                  ),
-                                ),
-                              ),
+            height: MediaQuery.of(context).size.height * 0.25,
+            child: Stack(
+              children: <Widget>[
+                Positioned(
+                  bottom: 5,
+                  left: 15,
+                  child: Tooltip(
+                    message: "Follow",
+                    child: GestureDetector(
+                      onTap: () {
+                        print("tapped");
+                        AlertDialog(
+                          content: Text("hi"),
+                          actions: <Widget>[
+                            GestureDetector(
                               onTap: () {
-                                setState(() {
-                                  _isOverviewActive = true;
-                                  _isPostActive = false;
-                                  _isCommunitiesActive = false;
-                                  _overviewColor = Color(0xFF2AB1F3);
-                                  _postColor = Colors.grey;
-                                  _communitiesColor = Colors.grey;
-                                });
+                                Navigator.of(context).pop();
                               },
-                            ),
+                              child: Text("Cancel"),
+                            )
+                          ],
+                        );
+                      },
+                      child: Chip(
+                        label: Text(
+                            !_following ? "Follow" : "Unfollow",
+                          style: TextStyle(
+                            color: Colors.white
                           ),
                         ),
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                      width: _isPostActive ? 1.5 : 0,
-                                      color: _isPostActive ? Color(0xFF2AB1F3) :Colors.transparent
+                        backgroundColor: Color(0xFF2AB1F3),
+                      ),
+                    )
+//                    IconButton(
+//                      icon: Icon(Icons.add_circle_outline),
+//                      color: Color(0xFF2AB1F3),
+//                      onPressed: () => print("Add profile background picture pressed"),
+//                    ),
+                  ),
+                ),
+                Center(
+                  child: Column(
+                    children: <Widget>[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 30.0, left: 20.0),
+                            child: Container(
+                                width: 80.0,
+                                height: 80.0,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(80.0),
+                                  image: DecorationImage(
+                                      image: widget.user.photoUrl.isEmpty
+                                          ? AssetImage('assets/no_image.png')
+                                          : NetworkImage(widget.user.photoUrl),
+                                      fit: BoxFit.cover),
+                                )
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Padding(
+                            padding: const EdgeInsets.only(left: 25.0, top: 30.0),
+                            child: Text(widget.user.displayName,
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 24.0)),
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 0.0),
+            child: Column(
+              children: <Widget>[
+                Container(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: <Widget>[
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                    width: _isOverviewActive ? 1.5 : 0,
+                                    color: _isOverviewActive ? Color(0xFF2AB1F3) :Colors.transparent
+                                ),
+                              ),
+                              color: _isOverviewActive ? Colors.white70 : Colors.white30
+                          ),
+                          child: GestureDetector(
+                            child: Center(
+                              child: Padding(
+                                padding: EdgeInsets.only(top: 14, bottom: 14),
+                                child: Text(
+                                  "Overview",
+                                  style: TextStyle(
+                                      color: _overviewColor,
+                                      fontWeight: FontWeight.bold
                                   ),
                                 ),
-                                color: _isPostActive ? Colors.white70 : Colors.white30
+                              ),
                             ),
-                            child: GestureDetector(
-                              child: StreamBuilder(
-                                stream: _repository
-                                    .fetchStats(
-                                    uid: _user.uid, label: 'posts')
-                                    .asStream(),
-                                builder: ((context,
-                                    AsyncSnapshot<List<DocumentSnapshot>>
-                                    snapshot) {
-                                  if (snapshot.hasData) {
+                            onTap: () {
+                              setState(() {
+                                _isOverviewActive = true;
+                                _isPostActive = false;
+                                _isCommunitiesActive = false;
+                                _overviewColor = Color(0xFF2AB1F3);
+                                _postColor = Colors.grey;
+                                _communitiesColor = Colors.grey;
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                    width: _isPostActive ? 1.5 : 0,
+                                    color: _isPostActive ? Color(0xFF2AB1F3) :Colors.transparent
+                                ),
+                              ),
+                              color: _isPostActive ? Colors.white70 : Colors.white30
+                          ),
+                          child: GestureDetector(
+                            child: StreamBuilder(
+                              stream: _repository
+                                  .fetchStats(
+                                  uid: widget.user.uid, label: 'posts')
+                                  .asStream(),
+                              builder: ((context,
+                                  AsyncSnapshot<List<DocumentSnapshot>>
+                                  snapshot) {
+                                if (snapshot.hasData) {
 //                                  return detailsWidget(
 //                                      snapshot.data.length.toString(),
 //                                      'posts');
-                                    return Center(
-                                      child: Padding(
-                                        padding: EdgeInsets.only(top: 14, bottom: 14),
-                                        child: Text(
-                                          "Posts",
-                                          style: TextStyle(
-                                              color: _postColor,
+                                  return Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.only(top: 14, bottom: 14),
+                                      child: Text(
+                                        "Posts",
+                                        style: TextStyle(
+                                            color: _postColor,
                                             fontWeight: FontWeight.bold
-                                          ),
                                         ),
                                       ),
-                                    );
-                                  } else {
-                                    return Center(
-                                      child: CircularProgressIndicator(),
-                                    );
-                                  }
-                                }),
-                              ),
-                              onTap: () {
-                                setState(() {
-                                  _isOverviewActive = false;
-                                  _isPostActive = true;
-                                  _isCommunitiesActive = false;
-                                  _overviewColor = Colors.grey;
-                                  _postColor = Color(0xFF2AB1F3);
-                                  _communitiesColor = Colors.grey;
-                                });
-                              },
+                                    ),
+                                  );
+                                } else {
+                                  return Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                }
+                              }),
                             ),
+                            onTap: () {
+                              setState(() {
+                                _isOverviewActive = false;
+                                _isPostActive = true;
+                                _isCommunitiesActive = false;
+                                _overviewColor = Colors.grey;
+                                _postColor = Color(0xFF2AB1F3);
+                                _communitiesColor = Colors.grey;
+                              });
+                            },
                           ),
                         ),
-                        Expanded(
+                      ),
+                      Expanded(
                           child: Container(
-                              decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                        width: _isCommunitiesActive ? 1.5 : 0,
-                                        color: _isCommunitiesActive ? Color(0xFF2AB1F3) :Colors.transparent
-                                    ),
+                            decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                      width: _isCommunitiesActive ? 1.5 : 0,
+                                      color: _isCommunitiesActive ? Color(0xFF2AB1F3) :Colors.transparent
                                   ),
+                                ),
                                 color: _isCommunitiesActive ? Colors.white70 : Colors.white30
-                              ),
+                            ),
                             child: GestureDetector(
                               onTap: () {
                                 setState(() {
@@ -354,176 +362,94 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                               ),
                             ),
                           )
-                        ),
-//                            StreamBuilder(
-//                              stream: _repository
-//                                  .fetchStats(
-//                                  uid: _user.uid, label: 'followers')
-//                                  .asStream(),
-//                              builder: ((context,
-//                                  AsyncSnapshot<List<DocumentSnapshot>>
-//                                  snapshot) {
-//                                if (snapshot.hasData) {
-//                                  return Padding(
-//                                    padding:
-//                                    const EdgeInsets.only(left: 24.0),
-//                                    child: detailsWidget(
-//                                        snapshot.data.length.toString(),
-//                                        'followers'),
-//                                  );
-//                                } else {
-//                                  return Center(
-//                                    child: CircularProgressIndicator(),
-//                                  );
-//                                }
-//                              }),
-//                            ),
-//                            StreamBuilder(
-//                              stream: _repository
-//                                  .fetchStats(
-//                                  uid: _user.uid, label: 'following')
-//                                  .asStream(),
-//                              builder: ((context,
-//                                  AsyncSnapshot<List<DocumentSnapshot>>
-//                                  snapshot) {
-//                                if (snapshot.hasData) {
-//                                  return Padding(
-//                                    padding:
-//                                    const EdgeInsets.only(left: 20.0),
-//                                    child: detailsWidget(
-//                                        snapshot.data.length.toString(),
-//                                        'following'),
-//                                  );
-//                                } else {
-//                                  return Center(
-//                                    child: CircularProgressIndicator(),
-//                                  );
-//                                }
-//                              }),
-//                            ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-//                        GestureDetector(
-//                          child: Padding(
-//                            padding: const EdgeInsets.only(
-//                                top: 12.0, left: 20.0, right: 20.0),
-//                            child: Container(
-//                              width: 210.0,
-//                              height: 30.0,
-//                              decoration: BoxDecoration(
-//                                  color: Colors.white,
-//                                  borderRadius: BorderRadius.circular(4.0),
-//                                  border: Border.all(color: Colors.grey)),
-//                              child: Center(
-//                                child: Text('Edit Profile',
-//                                    style: TextStyle(color: Colors.black)),
-//                              ),
-//                            ),
-//                          ),
-//                          onTap: () {
-//                            Navigator.push(context, MaterialPageRoute(
-//                                builder: ((context) => EditProfileScreen(
-//                                    photoUrl: _user.photoUrl,
-//                                    email: _user.email,
-//                                    bio: _user.bio,
-//                                    name: _user.displayName,
-//                                    phone: _user.phone
-//                                ))
-//                            ));
-//                          },
-//                        )
-                ],
-              ),
+                ),
+              ],
             ),
-            _isOverviewActive ? Container(
-              height: MediaQuery.of(context).size.height *0.55,
-              decoration: BoxDecoration(
+          ),
+          _isOverviewActive ? Container(
+            height: MediaQuery.of(context).size.height *0.55,
+            decoration: BoxDecoration(
                 color: Color(0xFE1E2E3)
-              ),
-              child: ListView(
-                children: <Widget>[
-                  _user.bio.isNotEmpty && _user.bio.trim().length > 0 ? Row(
-                    children: <Widget>[
-                      Expanded(
+            ),
+            child: ListView(
+              children: <Widget>[
+                widget.user.bio.isNotEmpty ? Row(
+                  children: <Widget>[
+                    Expanded(
                         child: Padding(
                           padding: const EdgeInsets.only(top: 10.0, left: 10, right: 10),
                           child: Card(
                             child: Padding(
                               padding: const EdgeInsets.all(25.0),
-                              child: _user.bio.isNotEmpty && _user.bio.trim().length > 0 ?
-                                    Text(_user.bio, style: TextStyle(
-                                     fontStyle: FontStyle.italic
-                                    )) : Container(),
+                              child: widget.user.bio.isNotEmpty ?
+                              Text(widget.user.bio, style: TextStyle(
+                                  fontStyle: FontStyle.italic
+                              )) : Container(),
                             ),
                           ),
                         )
-                      ),
-                    ],
-                  ) : new Container(),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 10.0, left: 10, right: 10),
-                            child: Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(25.0),
-                                child:  Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: Row(
-                                        children: <Widget>[
-                                          Icon(Icons.star, color: Colors.amberAccent,)
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.end,
-                                        children: <Widget>[
-                                          Wrap(
-                                            children: <Widget>[
-                                              Text(
-                                                  "You've earned ",
-                                                  style: TextStyle(
-                                                      fontStyle: FontStyle.italic
-                                                  )
-                                              ),
-                                              Text(
-                                                  "${_user.points != null && _user.points != "" ? _user.points : "0"}",
-                                                  style: TextStyle(
-                                                      fontStyle: FontStyle.italic,
+                    ),
+                  ],
+                ) : new Container(),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 10.0, left: 10, right: 10),
+                          child: Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(25.0),
+                              child:  Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: <Widget>[
+                                  Expanded(
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: <Widget>[
+                                        Wrap(
+                                          children: <Widget>[
+                                            Text(
+                                                "${widget.user.displayName} already earned ",
+                                                style: TextStyle(
+                                                    fontStyle: FontStyle.italic
+                                                )
+                                            ),
+                                            Text(
+                                                "${widget.user.points != null && widget.user.points != "" ? widget.user.points : "0"}",
+                                                style: TextStyle(
+                                                    fontStyle: FontStyle.italic,
                                                     fontWeight: FontWeight.bold
-                                                  )
-                                              ),
-                                              Text(
-                                                  " points",
-                                                  style: TextStyle(
-                                                      fontStyle: FontStyle.italic
-                                                  )
-                                              )
-                                            ],
-                                          ),
+                                                )
+                                            ),
+                                            Text(
+                                                " points",
+                                                style: TextStyle(
+                                                    fontStyle: FontStyle.italic
+                                                )
+                                            )
+                                          ],
+                                        ),
 
-                                        ],
-                                      ),
-                                    )
-                                  ],
-                                ),
+                                      ],
+                                    ),
+                                  )
+                                ],
                               ),
                             ),
-                          )
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(10.0),
-                            child: Card(
+                          ),
+                        )
+                    ),
+                  ],
+                ),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(10.0),
+                          child: Card(
                               child: Column(
                                 children: <Widget>[
                                   Row(
@@ -555,7 +481,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                                 child: Padding(
                                                   padding: EdgeInsets.only(top: 14, bottom: 14),
                                                   child: Text(
-                                                    "My Campaigns",
+                                                    "Campaigns",
                                                     style: TextStyle(
                                                         fontWeight: FontWeight.bold,
                                                         color: _isMyCampaigns ? Color(0xFF2AB1F3) : Colors.grey
@@ -594,7 +520,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                                 child: Padding(
                                                   padding: EdgeInsets.only(top: 14, bottom: 14),
                                                   child: Text(
-                                                    "Campaigns I Support",
+                                                    "Campaigns Supported",
                                                     style: TextStyle(
                                                         fontWeight: FontWeight.bold,
                                                         color: _isCampaignsIsupport ? Color(0xFF2AB1F3) : Colors.grey
@@ -611,439 +537,492 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                   Row(
                                     children: <Widget>[
                                       Expanded(
-                                        child: Container(
-                                          child:  _isMyCampaigns ? FutureBuilder(
-                                              future: _myCampaignsFuture,
-                                              builder: ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
-                                                if (snapshot.hasData && snapshot.data.length > 0) {
-                                                  if (snapshot.connectionState == ConnectionState.done) {
-                                                    return ListView.builder(
-                                                        shrinkWrap: true,
-                                                        itemCount: snapshot.data.length,
-                                                        itemBuilder: (BuildContext context, int index) {
-                                                          if (_isMyCampaigns
-                                                              && snapshot.data.length > 0) {
-                                                            return Padding(
-                                                              padding: EdgeInsets.all(20),
-                                                              child: ListTile(
-                                                                leading: SizedBox(
-                                                                    height: 40.0,
-                                                                    width: 40.0,
-                                                                    child: ClipRRect(
-                                                                      borderRadius: BorderRadius.circular(80),
-                                                                      clipBehavior: Clip.hardEdge,
-                                                                      child: Container(
-                                                                          width: 40.0,
-                                                                          height: 40.0,
-                                                                          decoration: BoxDecoration(
-                                                                            borderRadius: BorderRadius.circular(80.0),
-                                                                            image: DecorationImage(
-                                                                                image: snapshot.data[index]['campaignImgUrl'].isEmpty
-                                                                                    ? AssetImage('assets/no_image.png')
-                                                                                    : NetworkImage(snapshot.data[index]['campaignImgUrl']),
-                                                                                fit: BoxFit.cover
-                                                                            ),
-                                                                          )
+                                          child: Container(
+                                            child:  _isMyCampaigns ? FutureBuilder(
+                                                future: _myCampaignsFuture,
+                                                builder: ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
+                                                  if (snapshot.hasData && snapshot.data.length > 0) {
+                                                    if (snapshot.connectionState == ConnectionState.done) {
+                                                      return ListView.builder(
+                                                          shrinkWrap: true,
+                                                          itemCount: snapshot.data.length,
+                                                          itemBuilder: (BuildContext context, int index) {
+                                                            if (_isMyCampaigns
+                                                                && snapshot.data.length > 0) {
+                                                              return Padding(
+                                                                padding: EdgeInsets.all(20),
+                                                                child: ListTile(
+                                                                  leading: SizedBox(
+                                                                      height: 40.0,
+                                                                      width: 40.0,
+                                                                      child: ClipRRect(
+                                                                        borderRadius: BorderRadius.circular(80),
+                                                                        clipBehavior: Clip.hardEdge,
+                                                                        child: Container(
+                                                                            width: 40.0,
+                                                                            height: 40.0,
+                                                                            decoration: BoxDecoration(
+                                                                              borderRadius: BorderRadius.circular(80.0),
+                                                                              image: DecorationImage(
+                                                                                  image: snapshot.data[index]['campaignImgUrl'].isEmpty
+                                                                                      ? AssetImage('assets/no_image.png')
+                                                                                      : NetworkImage(snapshot.data[index]['campaignImgUrl']),
+                                                                                  fit: BoxFit.cover
+                                                                              ),
+                                                                            )
+                                                                        ),
+                                                                      )
+                                                                  ),
+                                                                  subtitle: Column(
+                                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                                    children: <Widget>[
+                                                                      Text(
+                                                                        snapshot.data[index]["campaignTitle"],
+                                                                        style: TextStyle(
+                                                                            fontSize: 14,
+                                                                            fontWeight: FontWeight.bold
+                                                                        ),
                                                                       ),
-                                                                    )
-                                                                ),
-                                                                subtitle: Column(
-                                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                                  children: <Widget>[
-                                                                    Text(
-                                                                      snapshot.data[index]["campaignTitle"],
-                                                                      style: TextStyle(
-                                                                          fontSize: 14,
-                                                                          fontWeight: FontWeight.bold
+                                                                      Text(
+                                                                          snapshot.data[index]["campaignDescription"]
                                                                       ),
+                                                                      Text(
+                                                                          '0 patrons' // TODO fetch campaign patrons
+                                                                      )
+                                                                    ],
+                                                                  ),
+                                                                  trailing: GestureDetector(
+                                                                    onTap: () async {
+                                                                      if (!_myCampaignsRef.containsKey(snapshot.data[index].documentID)) {
+                                                                        Campaign campaign = Campaign(
+                                                                            currentUserUid: _user.uid,
+                                                                            campaignUid: snapshot.data[index].documentID,
+//                                                                            campaignImgUrl: snapshot.data[index]["campaignImgUrl"],
+                                                                            campaignTitle: snapshot.data[index]["campaignTitle"],
+                                                                            campaignDescription: snapshot.data[index]["campaignDescription"],
+                                                                            campaignThankYouVideoUrl: snapshot.data[index]["campaignThankYouVideoUrl"],
+                                                                            campaignThankYouText: snapshot.data[index]["campaignThankYouText"],
+                                                                            jointCampaign: snapshot.data[index]["jointCampaign"],
+                                                                            nsfwContent: snapshot.data[index]["nsfwContent"],
+                                                                            campaignIsEarningBased: snapshot.data[index]["campaignIsEarningBased"],
+                                                                            campaignPaymentScheduleIsPerMonth: snapshot.data[index]["campaignPaymentScheduleIsPerMonth"],
+                                                                            campaignEarningsAreVisible: snapshot.data[index]["campaignEarningsAreVisible"],
+                                                                            campaignOwnerName: snapshot.data[index]["campaignOwnerName"],
+                                                                            campaignOwnerPhotoUrl: snapshot.data[index]["campaignOwnerPhotoUrl"]
+                                                                        );
+                                                                        _postPatron(_campaignsRef[snapshot.data[index].documentID], _user, campaign);
+                                                                      } else {
+                                                                        bool deleted = await _postUnPatron(
+                                                                            _campaignsRef[snapshot.data[index].documentID],
+                                                                            _user,
+                                                                          _myCampaignsRef[snapshot.data[index].documentID]
+                                                                        );
+                                                                        if (deleted) {
+                                                                          _myCampaignsRef.remove(snapshot.data[index].documentID);
+                                                                        }
+                                                                      }
+                                                                      setState(() {});
+                                                                    },
+                                                                    child: Text(
+                                                                        !_myCampaignsRef.containsKey(snapshot.data[index].documentID) ? "Support" : "Unsupport",
+                                                                      style: TextStyle(color: Color(0xFF2AB1F3)),
                                                                     ),
-                                                                    Text(
-                                                                        snapshot.data[index]["campaignDescription"]
-                                                                    ),
-                                                                    Text(
-                                                                        '0 patrons' // TODO fetch campaign patrons
-                                                                    )
-                                                                  ],
+                                                                  ),
                                                                 ),
-                                                              ),
-                                                            );
+                                                              );
+                                                            }
+                                                            return Container();
                                                           }
-                                                          return Container();
-                                                        }
+                                                      );
+                                                    }
+                                                  } else {
+                                                    return Container(
+                                                      height: 100,
+                                                      child: Center(
+                                                        child: CircularProgressIndicator(),
+                                                      ),
                                                     );
                                                   }
-                                                } else {
-                                                  return Container(
-                                                    height: 100,
-                                                    child: Center(
-                                                      child: CircularProgressIndicator(),
-                                                    ),
-                                                  );
-                                                }
-                                                return Container();
-                                              })
-                                          ) : FutureBuilder( /// campaigns I support
-                                              future: _supportedCampaignsFuture,
-                                              builder: ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
-                                                if (snapshot.hasData && snapshot.data.length > 0) {
-                                                  if (snapshot.connectionState == ConnectionState.done) {
-                                                    return ListView.builder(
-                                                        shrinkWrap: true,
-                                                        itemCount: snapshot.data.length,
-                                                        itemBuilder: (BuildContext context, int index) {
-                                                          if (!_isMyCampaigns
-                                                              && snapshot.data.length > 0) {
-                                                            return Padding(
-                                                              padding: EdgeInsets.all(20),
-                                                              child: ListTile(
-                                                                leading: Container(
-                                                                  width: 40, // can be whatever value you want
-                                                                  alignment: Alignment.center,
-                                                                  child: Icon(Icons.language),
-                                                                ),
-                                                                subtitle: Column(
-                                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                                  children: <Widget>[
-                                                                    Text(
-                                                                      snapshot.data[index]["campaignTitle"],
-                                                                      style: TextStyle(
-                                                                          fontSize: 14,
-                                                                          fontWeight: FontWeight.bold
+                                                  return Container();
+                                                })
+                                            ) : FutureBuilder( /// campaigns I support
+                                                future: _supportedCampaignsFuture,
+                                                builder: ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
+                                                  if (snapshot.hasData && snapshot.data.length > 0) {
+                                                    if (snapshot.connectionState == ConnectionState.done) {
+                                                      return ListView.builder(
+                                                          shrinkWrap: true,
+                                                          itemCount: snapshot.data.length,
+                                                          itemBuilder: (BuildContext context, int index) {
+                                                            if (!_isMyCampaigns
+                                                                && snapshot.data.length > 0) {
+                                                              return Padding(
+                                                                padding: EdgeInsets.all(20),
+                                                                child: ListTile(
+                                                                  leading: SizedBox(
+                                                                      height: 40.0,
+                                                                      width: 40.0,
+                                                                      child: ClipRRect(
+                                                                        borderRadius: BorderRadius.circular(80),
+                                                                        clipBehavior: Clip.hardEdge,
+                                                                        child: Container(
+                                                                            width: 40.0,
+                                                                            height: 40.0,
+                                                                            decoration: BoxDecoration(
+                                                                              borderRadius: BorderRadius.circular(80.0),
+                                                                              image: DecorationImage(
+                                                                                  image: snapshot.data[index]['campaignImgUrl'].isEmpty
+                                                                                      ? AssetImage('assets/no_image.png')
+                                                                                      : NetworkImage(snapshot.data[index]['campaignImgUrl']),
+                                                                                  fit: BoxFit.cover
+                                                                              ),
+                                                                            )
+                                                                        ),
+                                                                      )
+                                                                  ),
+                                                                  subtitle: Column(
+                                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                                    children: <Widget>[
+                                                                      Text(
+                                                                        snapshot.data[index]["campaignTitle"],
+                                                                        style: TextStyle(
+                                                                            fontSize: 14,
+                                                                            fontWeight: FontWeight.bold
+                                                                        ),
                                                                       ),
-                                                                    ),
-                                                                    Text(
-                                                                        snapshot.data[index]["campaignDescription"]
-                                                                    ),
-                                                                    Text(
-                                                                        '0 supporters' // TODO fetch campaign supporters
-                                                                    )
-                                                                  ],
+                                                                      Text(
+                                                                          snapshot.data[index]["campaignDescription"]
+                                                                      ),
+                                                                      Text(
+                                                                          '0 supporters' // TODO fetch campaign supporters
+                                                                      )
+                                                                    ],
+                                                                  ),
                                                                 ),
-                                                              ),
-                                                            );
+                                                              );
+                                                            }
+                                                            return Container();
                                                           }
-                                                          return Container();
-                                                        }
+                                                      );
+                                                    }
+                                                  } else {
+                                                    return Container(
+                                                      height: 100,
+                                                      child: Center(
+                                                        child: CircularProgressIndicator(),
+                                                      ),
                                                     );
                                                   }
-                                                } else {
-                                                  return Container(
-                                                    height: 100,
-                                                    child: Center(
-                                                      child: CircularProgressIndicator(),
-                                                    ),
-                                                  );
-                                                }
-                                                return Container();
-                                              })
-                                          ),
-                                        )
+                                                  return Container();
+                                                })
+                                            ),
+                                          )
                                       ),
                                     ],
                                   )
                                 ],
                               )
-                            ),
-                          )
-                      ),
-                    ],
-                  )
-                ],
-              ),
-            ) : Container(),
-            _isPostActive ? Container(
-              decoration: BoxDecoration(
-                  color: Color(0xFE1E2E3)
-              ),
-              height: MediaQuery.of(context).size.height * 0.55,
-              child: Column(
-                children: <Widget>[
-                  Expanded(
-                    child: Container(
+                          ),
+                        )
+                    ),
+                  ],
+                )
+              ],
+            ),
+          ) : Container(),
+          _isPostActive ? Container(
+            decoration: BoxDecoration(
+                color: Color(0xFE1E2E3)
+            ),
+            height: MediaQuery.of(context).size.height * 0.55,
+            child: Column(
+              children: <Widget>[
+                Expanded(
+                  child: Container(
                       child:
-                        FutureBuilder(
-                          future: _future,
-                          builder: ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
-                            if (snapshot.hasData) {
-                              if (snapshot.connectionState == ConnectionState.done) {
-                                return ListView.builder(
-                                  //shrinkWrap: true,
-                                    itemCount: snapshot.data.length,
-                                    itemBuilder: ((context, index) {
-                                      return Padding(
-                                        padding: EdgeInsets.only(top: index == 0 ? 10 : 20, left: 20, right: 20),
-                                        child: Card(
-                                          color: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(15.0),
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: <Widget>[
-                                              Row(
-                                                children: <Widget>[
-                                                  new Column(
-                                                    children: <Widget>[
-                                                      new Padding(
-                                                        padding: new EdgeInsets.all(15.0),
-                                                        child: new SizedBox(
-                                                            height: 40.0,
-                                                            width: 40.0,
-                                                            child: ClipRRect(
-                                                              borderRadius: BorderRadius.circular(80),
-                                                              clipBehavior: Clip.hardEdge,
-                                                              child: Container(
-                                                                  width: 40.0,
-                                                                  height: 40.0,
-                                                                  decoration: BoxDecoration(
-                                                                    borderRadius: BorderRadius.circular(80.0),
-                                                                    image: DecorationImage(
-                                                                        image: snapshot.data[index]['imgUrl'].isEmpty
-                                                                            ? AssetImage('assets/no_image.png')
-                                                                            : NetworkImage(snapshot.data[index]['imgUrl']),
-                                                                        fit: BoxFit.cover
-                                                                    ),
-                                                                  )
-                                                              ),
-                                                            )
-                                                        ),
+                      FutureBuilder(
+                        future: _future,
+                        builder: ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
+                          if (snapshot.hasData) {
+                            if (snapshot.connectionState == ConnectionState.done) {
+                              return ListView.builder(
+                                //shrinkWrap: true,
+                                  itemCount: snapshot.data.length,
+                                  itemBuilder: ((context, index) {
+                                    return Padding(
+                                      padding: EdgeInsets.only(top: index == 0 ? 10 : 20, left: 20, right: 20),
+                                      child: Card(
+                                        color: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(15.0),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: <Widget>[
+                                            Row(
+                                              children: <Widget>[
+                                                new Column(
+                                                  children: <Widget>[
+                                                    new Padding(
+                                                      padding: new EdgeInsets.all(15.0),
+                                                      child: new SizedBox(
+                                                          height: 40.0,
+                                                          width: 40.0,
+                                                          child: ClipRRect(
+                                                            borderRadius: BorderRadius.circular(80),
+                                                            clipBehavior: Clip.hardEdge,
+                                                            child: Container(
+                                                                width: 40.0,
+                                                                height: 40.0,
+                                                                decoration: BoxDecoration(
+                                                                  borderRadius: BorderRadius.circular(80.0),
+                                                                  image: DecorationImage(
+                                                                      image: snapshot.data[index]['imgUrl'].isEmpty
+                                                                          ? AssetImage('assets/no_image.png')
+                                                                          : NetworkImage(snapshot.data[index]['imgUrl']),
+                                                                      fit: BoxFit.cover
+                                                                  ),
+                                                                )
+                                                            ),
+                                                          )
                                                       ),
-                                                    ],
-                                                  ),
-                                                  Expanded(
-                                                      child: Stack(
-                                                        children: <Widget>[
-                                                          LayoutBuilder(
-                                                            builder: (BuildContext context, BoxConstraints constraints) {
-                                                              return new Column(
-                                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                                mainAxisAlignment: MainAxisAlignment.start,
-                                                                children: <Widget>[
-                                                                  new Padding(
-                                                                    padding: new EdgeInsets.only(
-                                                                        left: 4.0,
-                                                                        right: 35.0,
-                                                                        bottom: 8.0,
-                                                                        top: 8.0),
-                                                                    child: new Text(
-                                                                      _user.displayName,
-                                                                      style: new TextStyle(
-                                                                        fontWeight: FontWeight.bold,
-                                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                Expanded(
+                                                    child: Stack(
+                                                      children: <Widget>[
+                                                        LayoutBuilder(
+                                                          builder: (BuildContext context, BoxConstraints constraints) {
+                                                            return new Column(
+                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                              mainAxisAlignment: MainAxisAlignment.start,
+                                                              children: <Widget>[
+                                                                new Padding(
+                                                                  padding: new EdgeInsets.only(
+                                                                      left: 4.0,
+                                                                      right: 35.0,
+                                                                      bottom: 8.0,
+                                                                      top: 8.0),
+                                                                  child: new Text(
+                                                                    widget.user.displayName,
+                                                                    style: new TextStyle(
+                                                                      fontWeight: FontWeight.bold,
                                                                     ),
                                                                   ),
-                                                                  new Padding(
-                                                                      padding: new EdgeInsets.only(left: 4.0, right: 35),
-                                                                      child: new Row(
-                                                                        children: <Widget>[
-                                                                          Expanded(
-                                                                            child: new Text(
-                                                                              timeago.format(new DateTime.fromMillisecondsSinceEpoch(snapshot.data[index]["time"].seconds * 1000)),
-                                                                              style: TextStyle(
-                                                                                  color: Colors.grey,
-                                                                                  fontSize: 10,
-                                                                                  fontWeight: FontWeight.bold
-                                                                              ),
+                                                                ),
+                                                                new Padding(
+                                                                    padding: new EdgeInsets.only(left: 4.0, right: 35),
+                                                                    child: new Row(
+                                                                      children: <Widget>[
+                                                                        Expanded(
+                                                                          child: new Text(
+                                                                            timeago.format(DateTime.parse(snapshot.data[index]["time"].seconds.toString())),
+                                                                            style: TextStyle(
+                                                                                color: Colors.grey,
+                                                                                fontSize: 10,
+                                                                                fontWeight: FontWeight.bold
                                                                             ),
                                                                           ),
-                                                                        ],
-                                                                      )
+                                                                        ),
+                                                                      ],
+                                                                    )
+                                                                ),
+                                                                _fullTranslateOverlay(index, constraints),
+                                                              ],
+                                                            );
+                                                          },
+                                                        ),
+                                                        Row(
+                                                          mainAxisAlignment: MainAxisAlignment.end,
+                                                          children: <Widget>[
+                                                            Padding(
+                                                              padding: EdgeInsets.all(8),
+                                                              child: new IconButton(
+                                                                  icon: Icon(
+                                                                    Icons.language,
                                                                   ),
-                                                                  _fullTranslateOverlay(index, constraints),
-                                                                ],
-                                                              );
-                                                            },
+                                                                  onPressed: () {
+                                                                    _translateAll(snapshot.data[index]
+                                                                    ['text']);
+                                                                    _toggleDropdown(index);
+                                                                  }
+                                                              ),
+                                                            )
+                                                          ],
+                                                        )
+                                                      ],
+                                                    )
+                                                )
+                                              ],
+                                            ),
+                                            new Row(
+                                              children: [
+                                                new Expanded(
+                                                    child: LayoutBuilder(
+                                                      builder: (BuildContext context, BoxConstraints constraints) {
+                                                        return new GestureDetector(
+                                                          child: new Column(
+                                                            crossAxisAlignment:
+                                                            CrossAxisAlignment.start,
+                                                            children: [
+                                                              new Padding(
+                                                                  padding: new EdgeInsets.only(
+                                                                      left: 8.0,
+                                                                      right: 8.0,
+                                                                      bottom: 8.0),
+                                                                  child: _buildDescription(
+                                                                      snapshot.data[index]['caption'],
+                                                                      index,
+                                                                      snapshot.data[index]['time'].toString(),
+                                                                      true
+                                                                  )
+                                                              ),
+                                                            ],
                                                           ),
-                                                          Row(
-                                                            mainAxisAlignment: MainAxisAlignment.end,
+                                                          onTap: () {
+                                                          },
+                                                        );
+                                                      },
+                                                    )
+                                                ),
+                                              ],
+                                            ),
+                                            new Row(
+                                              children: [
+                                                new Expanded(
+                                                    child: LayoutBuilder(
+                                                      builder: (BuildContext context, BoxConstraints constraints) {
+                                                        return new GestureDetector(
+                                                          child: new Column(
+                                                            crossAxisAlignment:
+                                                            CrossAxisAlignment.start,
+                                                            children: [
+                                                              new Padding(
+                                                                  padding: new EdgeInsets.only(
+                                                                      left: 8.0,
+                                                                      right: 8.0,
+                                                                      bottom: 8.0),
+                                                                  child: _buildDescription(snapshot.data[index]
+                                                                  ['text'], index, snapshot.data[index]['time'].toString())
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          onTap: () {
+                                                          },
+                                                        );
+                                                      },
+                                                    )
+                                                ),
+                                              ],
+                                            ),
+                                            Row(
+                                              children: <Widget>[
+                                                Expanded(
+                                                  child: Container(
+                                                      decoration: BoxDecoration(
+                                                        border: Border(
+                                                          top: BorderSide(
+                                                              width: 0.8,
+                                                              color: Colors.grey.shade200
+                                                          ),
+                                                          right: BorderSide(
+                                                              width: 0.8,
+                                                              color: Colors.grey.shade200
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      child: Padding(
+                                                        padding: EdgeInsets.only(top: 25, bottom: 25),
+                                                        child: Container(
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.center,
+                                                            crossAxisAlignment: CrossAxisAlignment.center,
                                                             children: <Widget>[
                                                               Padding(
-                                                                padding: EdgeInsets.all(8),
-                                                                child: new IconButton(
-                                                                    icon: Icon(
-                                                                      Icons.language,
-                                                                    ),
-                                                                    onPressed: () {
-                                                                      _translateAll(snapshot.data[index]
-                                                                      ['text']);
-                                                                      _toggleDropdown(index);
-                                                                    }
+                                                                padding: EdgeInsets.only(right: 10),
+                                                                child: Icon(
+                                                                  Icons.thumb_up,
+                                                                  size: 16,
+                                                                  color: Colors.grey,
+                                                                ),
+                                                              ),
+                                                              Text(
+                                                                "Like",
+                                                                style: TextStyle(
+                                                                    fontWeight: FontWeight.bold,
+                                                                    fontSize: 16,
+                                                                    color: Colors.grey
                                                                 ),
                                                               )
                                                             ],
-                                                          )
-                                                        ],
-                                                      )
-                                                  )
-                                                ],
-                                              ),
-                                              new Row(
-                                                children: [
-                                                  new Expanded(
-                                                      child: LayoutBuilder(
-                                                        builder: (BuildContext context, BoxConstraints constraints) {
-                                                          return new GestureDetector(
-                                                            child: new Column(
-                                                              crossAxisAlignment:
-                                                              CrossAxisAlignment.start,
-                                                              children: [
-                                                                new Padding(
-                                                                    padding: new EdgeInsets.only(
-                                                                        left: 8.0,
-                                                                        right: 8.0,
-                                                                        bottom: 8.0),
-                                                                    child: _buildDescription(
-                                                                        snapshot.data[index]['caption'],
-                                                                        index,
-                                                                        snapshot.data[index]['time'].toString(),
-                                                                      true
-                                                                    )
-                                                                ),
-                                                              ],
-                                                            ),
-                                                            onTap: () {
-                                                            },
-                                                          );
-                                                        },
-                                                      )
-                                                  ),
-                                                ],
-                                              ),
-                                              new Row(
-                                                children: [
-                                                  new Expanded(
-                                                      child: LayoutBuilder(
-                                                        builder: (BuildContext context, BoxConstraints constraints) {
-                                                          return new GestureDetector(
-                                                            child: new Column(
-                                                              crossAxisAlignment:
-                                                              CrossAxisAlignment.start,
-                                                              children: [
-                                                                new Padding(
-                                                                    padding: new EdgeInsets.only(
-                                                                        left: 8.0,
-                                                                        right: 8.0,
-                                                                        bottom: 8.0),
-                                                                    child: _buildDescription(snapshot.data[index]
-                                                                    ['text'], index, snapshot.data[index]['time'].toString())
-                                                                ),
-                                                              ],
-                                                            ),
-                                                            onTap: () {
-                                                            },
-                                                          );
-                                                        },
-                                                      )
-                                                  ),
-                                                ],
-                                              ),
-                                              Row(
-                                                children: <Widget>[
-                                                  Expanded(
-                                                    child: Container(
-                                                        decoration: BoxDecoration(
-                                                          border: Border(
-                                                            top: BorderSide(
-                                                                width: 0.8,
-                                                                color: Colors.grey.shade200
-                                                            ),
-                                                            right: BorderSide(
-                                                                width: 0.8,
-                                                                color: Colors.grey.shade200
-                                                            ),
                                                           ),
                                                         ),
-                                                        child: Padding(
-                                                          padding: EdgeInsets.only(top: 25, bottom: 25),
-                                                          child: Container(
-                                                            child: Row(
-                                                              mainAxisAlignment: MainAxisAlignment.center,
-                                                              crossAxisAlignment: CrossAxisAlignment.center,
-                                                              children: <Widget>[
-                                                                Padding(
-                                                                  padding: EdgeInsets.only(right: 10),
-                                                                  child: Icon(
-                                                                    Icons.thumb_up,
-                                                                    size: 16,
-                                                                    color: Colors.grey,
-                                                                  ),
-                                                                ),
-                                                                Text(
-                                                                  "Like",
-                                                                  style: TextStyle(
-                                                                      fontWeight: FontWeight.bold,
-                                                                      fontSize: 16,
-                                                                      color: Colors.grey
-                                                                  ),
-                                                                )
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        )
-                                                    ),
+                                                      )
                                                   ),
-                                                  Expanded(
-                                                    child: Container(
-                                                        decoration: BoxDecoration(
-                                                          border: Border(
-                                                            top: BorderSide(
-                                                                width: 0.8,
-                                                                color: Colors.grey.shade200
-                                                            ),
-                                                            right: BorderSide(
-                                                                width: 0.8,
-                                                                color: Colors.grey.shade200
-                                                            ),
+                                                ),
+                                                Expanded(
+                                                  child: Container(
+                                                      decoration: BoxDecoration(
+                                                        border: Border(
+                                                          top: BorderSide(
+                                                              width: 0.8,
+                                                              color: Colors.grey.shade200
+                                                          ),
+                                                          right: BorderSide(
+                                                              width: 0.8,
+                                                              color: Colors.grey.shade200
                                                           ),
                                                         ),
-                                                        child: Padding(
-                                                          padding: EdgeInsets.only(top: 25, bottom: 25),
-                                                          child: Container(
-                                                            child: Row(
-                                                              mainAxisAlignment: MainAxisAlignment.center,
-                                                              crossAxisAlignment: CrossAxisAlignment.center,
-                                                              children: <Widget>[
-                                                                Padding(
-                                                                  padding: EdgeInsets.only(right: 10),
-                                                                  child: Icon(
-                                                                    Icons.insert_comment, size: 16,
-                                                                    color: Colors.grey,
-                                                                  ),
+                                                      ),
+                                                      child: Padding(
+                                                        padding: EdgeInsets.only(top: 25, bottom: 25),
+                                                        child: Container(
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.center,
+                                                            crossAxisAlignment: CrossAxisAlignment.center,
+                                                            children: <Widget>[
+                                                              Padding(
+                                                                padding: EdgeInsets.only(right: 10),
+                                                                child: Icon(
+                                                                  Icons.insert_comment, size: 16,
+                                                                  color: Colors.grey,
                                                                 ),
-                                                                Text(
-                                                                  "Comments",
-                                                                  style: TextStyle(
-                                                                      fontWeight: FontWeight.bold,
-                                                                      fontSize: 16,
-                                                                      color: Colors.grey
-                                                                  ),
-                                                                )
-                                                              ],
-                                                            ),
+                                                              ),
+                                                              Text(
+                                                                "Comments",
+                                                                style: TextStyle(
+                                                                    fontWeight: FontWeight.bold,
+                                                                    fontSize: 16,
+                                                                    color: Colors.grey
+                                                                ),
+                                                              )
+                                                            ],
                                                           ),
-                                                        )
-                                                    ),
+                                                        ),
+                                                      )
                                                   ),
-                                                ],
-                                              )
-                                            ],
-                                          ),
+                                                ),
+                                              ],
+                                            )
+                                          ],
                                         ),
-                                      );
-                                    }
-                                ));
-                              } else {
-                                return Center(
-                                  child: CircularProgressIndicator(),
-                                );
-                              }
+                                      ),
+                                    );
+                                  }
+                                  ));
                             } else {
                               return Center(
                                 child: CircularProgressIndicator(),
                               );
                             }
-                          }),
-                        )
+                          } else {
+                            return Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+                        }),
+                      )
 //                      ListView.builder(
 //                          shrinkWrap: true,
 //                          itemCount: _posts.length,
@@ -1283,59 +1262,40 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
 //                            return Container();
 //                          }
 //                      ),
+                  ),
+                )
+              ],
+            ),
+          ) : Container(),
+          _isCommunitiesActive ? Container(
+            decoration: BoxDecoration(
+                color: Color(0xFE1E2E3)
+            ),
+            height: MediaQuery.of(context).size.height * 0.55,
+            child: Column(
+              children: <Widget>[
+                Expanded(
+                  child: Container(
+                    child: GridView.count(
+                      // Create a grid with 2 columns. If you change the scrollDirection to
+                      // horizontal, this produces 2 rows.
+                      crossAxisCount: 3,
+                      // Generate 100 widgets that display their index in the List.
+                      children: List.generate(100, (index) {
+                        return Center(
+                          child: Icon(Icons.language, color: Colors.grey, size: 44),
+                        );
+                      }),
                     ),
-                  )
-                ],
-              ),
-            ) : Container(),
-            _isCommunitiesActive ? Container(
-              decoration: BoxDecoration(
-                  color: Color(0xFE1E2E3)
-              ),
-              height: MediaQuery.of(context).size.height * 0.55,
-              child: Column(
-                children: <Widget>[
-                  Expanded(
-                    child: Container(
-                      child: GridView.count(
-                        // Create a grid with 2 columns. If you change the scrollDirection to
-                        // horizontal, this produces 2 rows.
-                        crossAxisCount: 3,
-                        // Generate 100 widgets that display their index in the List.
-                        children: List.generate(100, (index) {
-                          return Center(
-                            child: Icon(Icons.language, color: Colors.grey, size: 44),
-                          );
-                        }),
-                      ),
-                    ),
-                  )
-                ],
-              ),
-            ) : Container()
-          ],
-        )
-            : Center(child: CircularProgressIndicator()),
-      floatingActionButton: _isOverviewActive ? FloatingActionButton(
-              onPressed: () {
-                print("Action button pressed");
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: ((context) => ComunoAddCampaignScreen(
-                        ))));
-              },
-              elevation: 10.0,
-              isExtended: true,
-              backgroundColor: Color(0xFF2AB1F3),
-              child: Container(
-                child: FittedBox(
-                  child: Icon(Icons.add, color: Colors.white,),
-                ),
-              ),
-            ) : new Container(),
-            floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-        );
+                  ),
+                )
+              ],
+            ),
+          ) : Container()
+        ],
+      )
+          : Center(child: CircularProgressIndicator()),
+    );
 //    );
   }
 
@@ -1417,7 +1377,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                         _chunkMap[uuid],
                         style: TextStyle(
                             color: Color(0xFF2AB1F3),
-                          fontWeight: FontWeight.bold
+                            fontWeight: FontWeight.bold
                         ),
                       ),
                     ),
@@ -1855,9 +1815,9 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
               child: Padding(
                 padding: title ? EdgeInsets.only(top: 4, bottom: 4, left: 2) : EdgeInsets.only(left: count != 0 ? 2 : 0),
                 child: Text(
-                    item,
+                  item,
                   style: title ? TextStyle(
-                    fontWeight: FontWeight.bold
+                      fontWeight: FontWeight.bold
                   ) : TextStyle(),
                 ),
               )
@@ -2067,82 +2027,82 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
   Widget postImagesWidget() {
     return _isGridActive == true
         ? FutureBuilder(
-            future: _future,
-            builder:
-                ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
-              if (snapshot.hasData) {
-                if (snapshot.connectionState == ConnectionState.done) {
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    itemCount: snapshot.data.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 4.0,
-                        mainAxisSpacing: 4.0),
-                    itemBuilder: ((context, index) {
-                      return GestureDetector(
-                        child: CachedNetworkImage(
-                          imageUrl: snapshot.data[index].data['imgUrl'],
-                          placeholder: ((context, s) => Center(
-                                child: CircularProgressIndicator(),
-                              )),
-                          width: 125.0,
-                          height: 125.0,
-                          fit: BoxFit.cover,
-                        ),
-                        onTap: () {
-                          print(
-                              "SNAPSHOT : ${snapshot.data[index].reference.path}");
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: ((context) => PostDetailScreen(
-                                        user: _user,
-                                        currentUser: _user,
-                                        documentSnapshot: snapshot.data[index],
-                                      ))));
-                        },
-                      );
-                    }),
-                  );
-                } else if (snapshot.hasError) {
-                  return Center(
-                    child: Text('No Posts Found'),
-                  );
-                }
-              } else {
-                return Center(child: CircularProgressIndicator());
-              }
-              return Container();
-            }),
-          )
-        : FutureBuilder(
-            future: _future,
-            builder:
-                ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
-              if (snapshot.hasData) {
-                if (snapshot.connectionState == ConnectionState.done) {
-                  return SizedBox(
-                      height: 600.0,
-                      child: ListView.builder(
-                          //shrinkWrap: true,
-                          itemCount: snapshot.data.length,
-                          itemBuilder: ((context, index) => ListItem(
-                              list: snapshot.data,
-                              index: index,
-                              user: _user))));
-                } else {
-                  return Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-              } else {
-                return Center(
-                  child: CircularProgressIndicator(),
+      future: _future,
+      builder:
+      ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
+        if (snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            return GridView.builder(
+              shrinkWrap: true,
+              itemCount: snapshot.data.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 4.0,
+                  mainAxisSpacing: 4.0),
+              itemBuilder: ((context, index) {
+                return GestureDetector(
+                  child: CachedNetworkImage(
+                    imageUrl: snapshot.data[index].data['imgUrl'],
+                    placeholder: ((context, s) => Center(
+                      child: CircularProgressIndicator(),
+                    )),
+                    width: 125.0,
+                    height: 125.0,
+                    fit: BoxFit.cover,
+                  ),
+                  onTap: () {
+                    print(
+                        "SNAPSHOT : ${snapshot.data[index].reference.path}");
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: ((context) => PostDetailScreen(
+                              user: widget.user,
+                              currentUser: widget.user,
+                              documentSnapshot: snapshot.data[index],
+                            ))));
+                  },
                 );
-              }
-            }),
+              }),
+            );
+          } else if (snapshot.hasError) {
+            return Center(
+              child: Text('No Posts Found'),
+            );
+          }
+        } else {
+          return Center(child: CircularProgressIndicator());
+        }
+        return Container();
+      }),
+    )
+        : FutureBuilder(
+      future: _future,
+      builder:
+      ((context, AsyncSnapshot<List<DocumentSnapshot>> snapshot) {
+        if (snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            return SizedBox(
+                height: 600.0,
+                child: ListView.builder(
+                  //shrinkWrap: true,
+                    itemCount: snapshot.data.length,
+                    itemBuilder: ((context, index) => ListItem(
+                        list: snapshot.data,
+                        index: index,
+                        user: widget.user))));
+          } else {
+            return Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+        } else {
+          return Center(
+            child: CircularProgressIndicator(),
           );
+        }
+      }),
+    );
   }
 
   Widget detailsWidget(String count, String label) {
@@ -2156,11 +2116,63 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
         Padding(
           padding: const EdgeInsets.only(top: 4.0),
           child:
-              Text(label, style: TextStyle(fontSize: 16.0, color: Colors.grey)),
+          Text(label, style: TextStyle(fontSize: 16.0, color: Colors.grey)),
         )
       ],
     );
   }
+
+  void _postPatron(DocumentReference reference, User currentUser, Campaign campaign) {
+    var _patron = Patron(
+        patronName: currentUser.displayName,
+        patronPhotoUrl: currentUser.photoUrl,
+        patronUid: currentUser.uid,
+        timeStamp: FieldValue.serverTimestamp());
+    print(_patron.toMap(_patron));
+    reference
+        .collection('patrons')
+        .document(currentUser.uid)
+        .setData(_patron.toMap(_patron))
+        .then((value) {
+      print("Campaign Supported in campaign record");
+    });
+    // add to user supported campaigns
+    _repository.addSupportedCampaignToUser(
+        currentUser,
+        campaign.campaignImgUrl,
+        campaign.campaignUid,
+        campaign.campaignTitle,
+        campaign.campaignDescription,
+        campaign.campaignThankYouVideoUrl,
+        campaign.campaignThankYouText,
+        campaign.jointCampaign,
+        campaign.nsfwContent,
+        campaign.campaignIsEarningBased,
+        campaign.campaignPaymentScheduleIsPerMonth,
+        campaign.campaignEarningsAreVisible,
+        campaign.campaignOwnerName,
+        campaign.campaignOwnerPhotoUrl
+    ).then((value) {
+      print("Campaign Supported in user record");
+      _retrieveUserDetails();
+    });
+  }
+
+  Future<bool> _postUnPatron(DocumentReference reference, User currentUser, DocumentReference campaignRef) async {
+    await reference
+        .collection("patrons")
+        .document(currentUser.uid)
+        .delete()
+        .then((value) {
+      print("Campaign unsupported in campaign record");
+    });
+    print("Campaign id to delete: ${campaignRef.documentID}");
+    _repository.removeSupportedCampaignToUser(currentUser, campaignRef.documentID);
+    print("Campaign unsupported");
+    _retrieveUserDetails();
+    return true;
+  }
+
 }
 
 class ListItem extends StatefulWidget {
@@ -2194,9 +2206,9 @@ class _ListItemState extends State<ListItem> {
                   context,
                   MaterialPageRoute(
                       builder: ((context) => CommentsScreen(
-                            documentReference: reference,
-                            user: widget.user,
-                          ))));
+                        documentReference: reference,
+                        user: widget.user,
+                      ))));
             },
           );
         } else {
@@ -2249,9 +2261,9 @@ class _ListItemState extends State<ListItem> {
                       ),
                       widget.list[widget.index].data['location'] != null
                           ? new Text(
-                              widget.list[widget.index].data['location'],
-                              style: TextStyle(color: Colors.grey),
-                            )
+                        widget.list[widget.index].data['location'],
+                        style: TextStyle(color: Colors.grey),
+                      )
                           : Container(),
                     ],
                   )
@@ -2267,8 +2279,8 @@ class _ListItemState extends State<ListItem> {
         CachedNetworkImage(
           imageUrl: widget.list[widget.index].data['imgUrl'],
           placeholder: ((context, s) => Center(
-                child: CircularProgressIndicator(),
-              )),
+            child: CircularProgressIndicator(),
+          )),
           width: 125.0,
           height: 250.0,
           fit: BoxFit.cover,
@@ -2284,13 +2296,13 @@ class _ListItemState extends State<ListItem> {
                   GestureDetector(
                       child: _isLiked
                           ? Icon(
-                              Icons.favorite,
-                              color: Colors.red,
-                            )
+                        Icons.favorite,
+                        color: Colors.red,
+                      )
                           : Icon(
-                              FontAwesomeIcons.heart,
-                              color: null,
-                            ),
+                        FontAwesomeIcons.heart,
+                        color: null,
+                      ),
                       onTap: () {
                         if (!_isLiked) {
                           setState(() {
@@ -2315,10 +2327,10 @@ class _ListItemState extends State<ListItem> {
                           context,
                           MaterialPageRoute(
                               builder: ((context) => CommentsScreen(
-                                    documentReference:
-                                        widget.list[widget.index].reference,
-                                    user: widget.user,
-                                  ))));
+                                documentReference:
+                                widget.list[widget.index].reference,
+                                user: widget.user,
+                              ))));
                     },
                     child: new Icon(
                       FontAwesomeIcons.comment,
@@ -2336,9 +2348,9 @@ class _ListItemState extends State<ListItem> {
         ),
         FutureBuilder(
           future:
-              _repository.fetchPostLikes(widget.list[widget.index].reference),
+          _repository.fetchPostLikes(widget.list[widget.index].reference),
           builder:
-              ((context, AsyncSnapshot<List<DocumentSnapshot>> likesSnapshot) {
+          ((context, AsyncSnapshot<List<DocumentSnapshot>> likesSnapshot) {
             if (likesSnapshot.hasData) {
               return GestureDetector(
                 onTap: () {
@@ -2346,21 +2358,21 @@ class _ListItemState extends State<ListItem> {
                       context,
                       MaterialPageRoute(
                           builder: ((context) => LikesScreen(
-                                user: widget.user,
-                                documentReference:
-                                    widget.list[widget.index].reference,
-                              ))));
+                            user: widget.user,
+                            documentReference:
+                            widget.list[widget.index].reference,
+                          ))));
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: likesSnapshot.data.length > 1
                       ? Text(
-                          "Liked by ${likesSnapshot.data[0].data['ownerName']} and ${(likesSnapshot.data.length - 1).toString()} others",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        )
+                    "Liked by ${likesSnapshot.data[0].data['ownerName']} and ${(likesSnapshot.data.length - 1).toString()} others",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  )
                       : Text(likesSnapshot.data.length == 1
-                          ? "Liked by ${likesSnapshot.data[0].data['ownerName']}"
-                          : "0 Likes"),
+                      ? "Liked by ${likesSnapshot.data[0].data['ownerName']}"
+                      : "0 Likes"),
                 ),
               );
             } else {
@@ -2370,28 +2382,28 @@ class _ListItemState extends State<ListItem> {
         ),
         Padding(
             padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: widget.list[widget.index].data['caption'] != null
                 ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Wrap(
-                        children: <Widget>[
-                          Text(widget.user.displayName,
-                              style: TextStyle(fontWeight: FontWeight.bold)),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8.0),
-                            child:
-                                Text(widget.list[widget.index].data['caption']),
-                          )
-                        ],
-                      ),
-                      Padding(
-                          padding: const EdgeInsets.only(top: 4.0),
-                          child: commentWidget(
-                              widget.list[widget.index].reference))
-                    ],
-                  )
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Wrap(
+                  children: <Widget>[
+                    Text(widget.user.displayName,
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child:
+                      Text(widget.list[widget.index].data['caption']),
+                    )
+                  ],
+                ),
+                Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: commentWidget(
+                        widget.list[widget.index].reference))
+              ],
+            )
                 : commentWidget(widget.list[widget.index].reference)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),

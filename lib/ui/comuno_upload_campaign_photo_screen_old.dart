@@ -10,16 +10,15 @@ import 'package:image/image.dart' as Im;
 import 'package:path_provider/path_provider.dart';
 import 'dart:math';
 
-class ComunoUploadPhotoScreen extends StatefulWidget {
+class ComunoUploadCampaignPhotoScreen extends StatefulWidget {
   File imageFile;
-  ComunoUploadPhotoScreen({this.imageFile});
+  ComunoUploadCampaignPhotoScreen({this.imageFile});
 
   @override
-  _ComunoUploadPhotoScreenState createState() => _ComunoUploadPhotoScreenState();
+  _ComunoUploadCampaignPhotoScreenState createState() => _ComunoUploadCampaignPhotoScreenState();
 }
 
-class _ComunoUploadPhotoScreenState extends State<ComunoUploadPhotoScreen> {
-  var _locationController;
+class _ComunoUploadCampaignPhotoScreenState extends State<ComunoUploadCampaignPhotoScreen> {
   var _captionController;
   var _textBodyController;
   final _repository = Repository();
@@ -28,7 +27,6 @@ class _ComunoUploadPhotoScreenState extends State<ComunoUploadPhotoScreen> {
   void initState() {
     // TODO: implement initState
     super.initState();
-    _locationController = TextEditingController();
     _captionController = TextEditingController();
     _textBodyController = TextEditingController();
   }
@@ -36,12 +34,11 @@ class _ComunoUploadPhotoScreenState extends State<ComunoUploadPhotoScreen> {
   @override
   void dispose() {
     super.dispose();
-    _locationController?.dispose();
     _captionController?.dispose();
     _textBodyController?.dispose();
   }
 
-  
+
 
 
   bool _visibility = true;
@@ -65,7 +62,7 @@ class _ComunoUploadPhotoScreenState extends State<ComunoUploadPhotoScreen> {
         ),
         title: Text(
           'New Post',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Color(0xFF2AB1F3),
         elevation: 1.0,
@@ -73,43 +70,43 @@ class _ComunoUploadPhotoScreenState extends State<ComunoUploadPhotoScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 20.0, top: 20.0),
             child: GestureDetector(
-              child: Text('Share',
+              child: Text('Create',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 16.0,
-                    fontWeight: FontWeight.bold
+                      fontWeight: FontWeight.bold
                   )
               ),
               onTap: () {
                 // To show the CircularProgressIndicator
                 _changeVisibility(false);
 
-                _repository.getCurrentUser().then((currentUser) {
-                  if (currentUser != null) {
-                    compressImage();
-                    _repository.retrieveUserDetails(currentUser).then((user) {
-                      _repository
-                        .uploadImageToStorage(widget.imageFile)
-                        .then((url) {
-                      _repository
-                          .addPostToDb(user, url,
-                              _captionController.text, _textBodyController.text , _locationController.text)
-                          .then((value) {
-                        print("Post added to db");
-                        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
-                          builder: ((context) => ComunoHomeScreen())
-                        ), (Route<dynamic> route) => false);
-                      }).catchError((e) =>
-                              print("Error adding current post to db : $e"));
-                    }).catchError((e) {
-                      print("Error uploading image to storage : $e");
-                    });
-                    });
-                    
-                  } else {
-                    print("Current User is null");
-                  }
-                });
+//                _repository.getCurrentUser().then((currentUser) {
+//                  if (currentUser != null) {
+//                    compressImage();
+//                    _repository.retrieveUserDetails(currentUser).then((user) {
+//                      _repository
+//                          .uploadImageToStorage(widget.imageFile)
+//                          .then((url) {
+//                        _repository
+//                            .addCampaignToDb(user, url,
+//                            _captionController.text, _textBodyController.text)
+//                            .then((value) {
+//                          print("Campaign added to db");
+//                          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
+//                              builder: ((context) => ComunoHomeScreen())
+//                          ), (Route<dynamic> route) => false);
+//                        }).catchError((e) =>
+//                            print("Error adding current campaign to db : $e"));
+//                      }).catchError((e) {
+//                        print("Error uploading image to storage : $e");
+//                      });
+//                    });
+//
+//                  } else {
+//                    print("Current User is null");
+//                  }
+//                });
               },
             ),
           )
@@ -139,18 +136,13 @@ class _ComunoUploadPhotoScreenState extends State<ComunoUploadPhotoScreen> {
                     keyboardType: TextInputType.multiline,
                     keyboardAppearance: Brightness.light,
                     decoration: InputDecoration(
-                      hintText: 'Write a post title...',
+                      hintText: 'Write a campaign title...',
                       focusedBorder: UnderlineInputBorder(
                           borderSide: BorderSide(
                               color: Color(0xFF2AB1F3)
                           )
                       ),
                     ),
-//                    onChanged: ((value) {
-//                      setState(() {
-//                        _captionController.text = value;
-//                      });
-//                    }),
                   ),
                 ),
               )
@@ -164,26 +156,7 @@ class _ComunoUploadPhotoScreenState extends State<ComunoUploadPhotoScreen> {
               keyboardType: TextInputType.multiline,
               keyboardAppearance: Brightness.light,
               decoration: InputDecoration(
-                hintText: 'Write a post text...',
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(
-                    color: Color(0xFF2AB1F3)
-                  )
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: TextField(
-              controller: _locationController,
-              onChanged: ((value) {
-                setState(() {
-//                  _locationController.text = value;
-                });
-              }),
-              decoration: InputDecoration(
-                hintText: 'Add location',
+                hintText: 'Write a campaign description...',
                 focusedBorder: UnderlineInputBorder(
                     borderSide: BorderSide(
                         color: Color(0xFF2AB1F3)
@@ -191,53 +164,6 @@ class _ComunoUploadPhotoScreenState extends State<ComunoUploadPhotoScreen> {
                 ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 12.0),
-            child: FutureBuilder(
-                future: locateUser(),
-                builder: ((context, AsyncSnapshot<List<Address>> snapshot) {
-                  //  if (snapshot.hasData) {
-                  if (snapshot.hasData) {
-                    return Row(
-                      // alignment: WrapAlignment.start,
-                      children: <Widget>[
-                        GestureDetector(
-                          child: Chip(
-                            label: Text(snapshot.data.first.locality ?? ""),
-                          ),
-                          onTap: () {
-                            setState(() {
-                              _locationController.text =
-                                  snapshot.data.first.locality;
-                            });
-                          },
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 12.0),
-                          child: GestureDetector(
-                            child: Chip(
-                              label: Text(
-                                  "${snapshot.data.first.subAdminArea ?? ""}, "
-                                      "${snapshot.data.first.subLocality ?? ""}"),
-                            ),
-                            onTap: () {
-                              setState(() {
-                                _locationController.text =
-                                    snapshot.data.first.subAdminArea +
-                                        ", " +
-                                        snapshot.data.first.subLocality;
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                    );
-                  } else {
-                    print("Connection State : ${snapshot.connectionState}");
-                    return CircularProgressIndicator();
-                  }
-                })),
           ),
           Padding(
             padding: const EdgeInsets.only(top: 50.0),
@@ -281,7 +207,7 @@ class _ComunoUploadPhotoScreenState extends State<ComunoUploadPhotoScreen> {
 
       // From coordinates
       final coordinates =
-          new Coordinates(currentLocation.latitude, currentLocation.longitude);
+      new Coordinates(currentLocation.latitude, currentLocation.longitude);
 
       addresses = Geocoder.local.findAddressesFromCoordinates(coordinates);
     } on PlatformException catch (e) {

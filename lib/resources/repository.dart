@@ -28,11 +28,48 @@ class Repository {
 
   Future<String> uploadImageToStorage(File imageFile) => _firebaseProvider.uploadImageToStorage(imageFile);
 
-  Future<void> addPostToDb(User currentUser, String imgUrl, String caption, String location) => _firebaseProvider.addPostToDb(currentUser, imgUrl, caption, location);
-  
+  Future<void> addPostToDb(User currentUser, String imgUrl, String caption, String text, String location) => _firebaseProvider.addPostToDb(currentUser, imgUrl, caption, text, location);
+
+  Future<void> addCampaignToDb(
+      User currentUser, String campaignImgUrl, String campaignTitle, String campaignDescription,
+      String campaignThankYouVideoUrl, String campaignThankYouText,
+      bool jointCampaign, bool nsfwContent, bool campaignIsEarningBased,
+      bool campaignPaymentScheduleIsPerMonth, bool campaignEarningsAreVisible
+      ) => _firebaseProvider.addCampaignToDb(
+        currentUser, campaignImgUrl, campaignTitle, campaignDescription,
+      campaignThankYouVideoUrl, campaignThankYouText,
+      jointCampaign, nsfwContent, campaignIsEarningBased,
+      campaignPaymentScheduleIsPerMonth, campaignEarningsAreVisible
+  );
+
+  Future<void> addSupportedCampaignToUser(
+      User currentUser, String campaignImgUrl, String campaignUid,
+      String campaignTitle, String campaignDescription,
+      String campaignThankYouVideoUrl, String campaignThankYouText,
+      bool jointCampaign, bool nsfwContent, bool campaignIsEarningBased,
+      bool campaignPaymentScheduleIsPerMonth, bool campaignEarningsAreVisible,
+      campaignOwnerName, campaignOwnerPhotoUrl
+      ) => _firebaseProvider.addSupportedCampaignToUser(
+        currentUser, campaignImgUrl, campaignUid, campaignTitle,
+      campaignDescription, campaignThankYouVideoUrl, campaignThankYouText,
+      jointCampaign, nsfwContent, campaignIsEarningBased,
+      campaignPaymentScheduleIsPerMonth, campaignEarningsAreVisible,
+      campaignOwnerName, campaignOwnerPhotoUrl
+  );
+
+  Future<void> removeSupportedCampaignToUser(User currentUser, String documentId) => _firebaseProvider.removeSupportedCampaignToUser(currentUser, documentId);
+
+  Future<DocumentReference> saveGoogleNewsToStorage(String postId, String urlToImage, String title, String publishedAt, String description) => _firebaseProvider.saveGoogleNewsToStorage(postId, urlToImage, title, publishedAt, description);
+
+  Future<DocumentReference> saveTwitterNewsToStorage(String userUid, String postId, String urlToImage, String title, String publishedAt, String description) => _firebaseProvider.saveTwitterNewsToStorage(userUid, postId, urlToImage, title, publishedAt, description);
+
   Future<User> retrieveUserDetails(FirebaseUser user) => _firebaseProvider.retrieveUserDetails(user);
 
   Future<List<DocumentSnapshot>> retrieveUserPosts(String userId) => _firebaseProvider.retrieveUserPosts(userId);
+
+  Future<List<DocumentSnapshot>> retrieveUserCampaigns(String userId) => _firebaseProvider.retrieveUserCampaigns(userId);
+
+  Future<List<DocumentSnapshot>> retrieveUserSupportedCampaigns(String userId) => _firebaseProvider.retrieveUserSupportedCampaigns(userId);
 
   Future<List<DocumentSnapshot>> fetchPostComments(DocumentReference reference) => _firebaseProvider.fetchPostCommentDetails(reference);
 
@@ -40,7 +77,11 @@ class Repository {
 
   Future<bool> checkIfUserLikedOrNot(String userId, DocumentReference reference) => _firebaseProvider.checkIfUserLikedOrNot(userId, reference);
 
-   Future<List<DocumentSnapshot>> retrievePosts(FirebaseUser user) => _firebaseProvider.retrievePosts(user);
+  Future<List<DocumentSnapshot>> retrievePosts(FirebaseUser user) => _firebaseProvider.retrievePosts(user);
+
+  Future<List<DocumentSnapshot>> fetchGoogleNews() => _firebaseProvider.fetchGoogleNews();
+
+  Future<List<DocumentSnapshot>> fetchTwitterNews(String uid) => _firebaseProvider.fetchTwitterNews(uid);
 
   Future<List<String>> fetchAllUserNames(FirebaseUser user) => _firebaseProvider.fetchAllUserNames(user);
 
@@ -58,7 +99,7 @@ class Repository {
 
   Future<void> updatePhoto(String photoUrl, String uid) => _firebaseProvider.updatePhoto(photoUrl, uid);
 
-  Future<void> updateDetails(String uid, String name, String bio, String email, String phone) => _firebaseProvider.updateDetails(uid, name, bio, email, phone);
+  Future<void> updateDetails(String uid, String name, String bio, String email) => _firebaseProvider.updateDetails(uid, name, bio, email);
 
   Future<List<String>> fetchUserNames(FirebaseUser user) => _firebaseProvider.fetchUserNames(user);
 

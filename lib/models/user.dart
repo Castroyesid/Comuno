@@ -12,6 +12,8 @@ class User {
    String bio;
    String phone;
    String points;
+   String campaigns;
+   String supportedCampaigns;
 
    User({
      this.uid,
@@ -24,7 +26,9 @@ class User {
      this.bio,
      this.posts,
      this.phone,
-     this.points
+     this.points,
+     this.campaigns,
+     this.supportedCampaigns
    });
 
     Map toMap(User user) {
@@ -40,6 +44,8 @@ class User {
     data['posts'] = user.posts;
     data['phone'] = user.phone;
     data['points'] = user.points;
+    data['campaigns'] = user.campaigns;
+    data['supportedCampaigns'] = user.supportedCampaigns;
     return data;
   }
 
@@ -55,6 +61,8 @@ class User {
     this.posts = mapData['posts'];
     this.phone = mapData['phone'];
     this.points = mapData['points'];
+    this.campaigns = mapData['campaigns'];
+    this.supportedCampaigns = mapData['supportedCampaigns'];
   }
 }
 

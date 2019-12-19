@@ -7,12 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:comuno/resources/repository.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:comuno/ui/comuno_home_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  final String photoUrl, email, bio, name, phone;
+  final String photoUrl, email, bio, name;
 
   EditProfileScreen(
-      {this.photoUrl, this.email, this.bio, this.name, this.phone});
+      {this.photoUrl, this.email, this.bio, this.name});
 
   @override
   _EditProfileScreenState createState() => _EditProfileScreenState();
@@ -24,7 +25,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _nameController = TextEditingController();
   final _bioController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+//  final _phoneController = TextEditingController();
 
   @override
   void initState() {
@@ -32,7 +33,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.text = widget.name;
     _bioController.text = widget.bio;
     _emailController.text = widget.email;
-    _phoneController.text = widget.phone;
+//    _phoneController.text = widget.phone;
     _repository.getCurrentUser().then((user) {
       setState(() {
         currentUser = user;
@@ -57,18 +58,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         backgroundColor: Color(0xFF2AB1F3),
         elevation: 1,
-        title: Text('Edit Profile'),
+        title: Text(
+            'Edit Profile',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold
+          ),
+        ),
         leading: GestureDetector(
-          child: Icon(Icons.close, color: Colors.black),
+          child: Icon(Icons.close, color: Colors.white),
           onTap: () => Navigator.pop(context),
         ),
         actions: <Widget>[
           GestureDetector(
             child: Padding(
               padding: const EdgeInsets.only(right: 12.0),
-              child: Icon(Icons.done, color: Colors.blue),
+              child: Icon(Icons.done, color: Colors.white),
             ),
             onTap: () {
               _repository
@@ -76,125 +84,191 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       currentUser.uid,
                       _nameController.text,
                       _bioController.text,
-                      _emailController.text,
-                      _phoneController.text)
+                      _emailController.text
+//                      _phoneController.text
+              )
                   .then((v) {
-                Navigator.pop(context);
-                // Navigator.push(context, MaterialPageRoute(
-                //   builder: ((context) => InstaHomeScreen())
-                // ));
+//                Navigator.pop(context);
+                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
+                    builder: ((context) => ComunoHomeScreen())
+                ), (Route<dynamic> route) => false);
               });
             },
-          )
+          ),
         ],
       ),
-      body: ListView(
-        children: <Widget>[
-          Column(
+      body: Container(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: ListView(
             children: <Widget>[
-              GestureDetector(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
-                    child: Container(
-                        width: 110.0,
-                        height: 110.0,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(80.0),
-                          image: DecorationImage(
-                              image: widget.photoUrl.isEmpty
-                                  ? AssetImage('assets/no_image.png')
-                                  : NetworkImage(widget.photoUrl),
-                              fit: BoxFit.cover),
-                        )),
+              Column(
+                children: <Widget>[
+                  GestureDetector(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 12.0),
+                        child: Container(
+                            width: 110.0,
+                            height: 110.0,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(80.0),
+                              image: DecorationImage(
+                                  image: widget.photoUrl.isEmpty
+                                      ? AssetImage('assets/no_image.png')
+                                      : NetworkImage(widget.photoUrl),
+                                  fit: BoxFit.cover),
+                            )),
+                      ),
+                      onTap: _showImageDialog),
+                  GestureDetector(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: Text('Change Photo',
+                          style: TextStyle(
+                              color: Color(0xFF2AB1F3),
+                              fontSize: 20.0,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                    onTap: _showImageDialog,
+                  )
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15.0),
+                    child: TextField(
+                      keyboardAppearance: Brightness.light,
+                      controller: _nameController,
+                      decoration: InputDecoration(
+//                        hintText: 'Name',
+                        labelText: 'Name',
+                        focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                                color: Color(0xFF2AB1F3)
+                            )
+                        ),
+                      ),
+//                      onChanged: ((value) {
+//                        setState(() {
+//                          _nameController.text = value;
+//                        });
+//                      }),
+                    ),
                   ),
-                  onTap: _showImageDialog),
-              GestureDetector(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 12.0),
-                  child: Text('Change Photo',
+                  Padding(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
+                    child: TextField(
+                      keyboardAppearance: Brightness.light,
+                      controller: _bioController,
+                      maxLines: 3,
+                      decoration:
+                      InputDecoration(
+//                          hintText: 'Bio',
+                          labelText: 'Bio',
+                        focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                                color: Color(0xFF2AB1F3)
+                            )
+                        ),
+                      ),
+//                      onChanged: ((value) {
+//                        setState(() {
+//                          _bioController.text = value;
+//                        });
+//                      }),
+                    ),
+                  ),
+                  Divider(),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 15.0),
+                    child: Text(
+                      'Private Information',
                       style: TextStyle(
-                          color: Colors.blue[700],
-                          fontSize: 20.0,
-                          fontWeight: FontWeight.bold)),
-                ),
-                onTap: _showImageDialog,
+                          color: Colors.grey,
+                          fontSize: 18.0,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Padding(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
+                    child: TextField(
+                      keyboardAppearance: Brightness.light,
+                      controller: _emailController,
+                      decoration: InputDecoration(
+//                          hintText: 'Email address',
+                          labelText: 'Email address',
+                        focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                                color: Color(0xFF2AB1F3)
+                            )
+                        ),
+                      ),
+//                      onChanged: ((value) {
+//                        setState(() {
+//                          _emailController.text = value;
+//                        });
+//                      }),
+                    ),
+                  ),
+                  Divider(),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 15.0),
+                    child: Text(
+                      'Payment Information',
+                      style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 18.0,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Padding(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 15.0, vertical: 18.0),
+                    child: GestureDetector(
+                      onTap: () => print("add payment method"),
+                      child: Text(
+                          "Add Payment Method",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2AB1F3)
+                        ),
+                      ),
+                    ),
+                  ),
+                  Divider(),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 15.0),
+                    child: Text(
+                      'Privacy Settings',
+                      style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 18.0,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Padding(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 15.0, vertical: 18.0),
+                    child: GestureDetector(
+                      onTap: () => print("change privacy settings"),
+                      child: Text(
+                        "Change Privacy Settings",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2AB1F3)
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               )
             ],
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 15.0),
-                child: TextField(
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    hintText: 'Name',
-                    labelText: 'Name',
-                  ),
-                  onChanged: ((value) {
-                    setState(() {
-                      _nameController.text = value;
-                    });
-                  }),
-                ),
-              ),
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
-                child: TextField(
-                  controller: _bioController,
-                  maxLines: 3,
-                  decoration:
-                      InputDecoration(hintText: 'Bio', labelText: 'Bio'),
-                  onChanged: ((value) {
-                    setState(() {
-                      _bioController.text = value;
-                    });
-                  }),
-                ),
-              ),
-              Divider(),
-              Padding(
-                padding: const EdgeInsets.only(left: 15.0),
-                child: Text(
-                  'Private Information',
-                  style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 18.0,
-                      fontWeight: FontWeight.bold),
-                ),
-              ),
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
-                child: TextField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                      hintText: 'Email address', labelText: 'Email address'),
-                  onChanged: ((value) {
-                    setState(() {
-                      _emailController.text = value;
-                    });
-                  }),
-                ),
-              ),
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
-                child: TextField(
-                  decoration: InputDecoration(
-                      hintText: 'Phone Number', labelText: 'Phone Number'),
-                  onChanged: ((value) {
-                    setState(() {
-                      _phoneController.text = value;
-                    });
-                  }),
-                ),
-              )
-            ],
-          )
-        ],
+        ),
       ),
     );
   }

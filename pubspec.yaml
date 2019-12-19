@@ -86,6 +86,7 @@ flutter:
     - assets/default_feed_image.jpg
     - assets/blue_dot.jpg
     - assets/words-bg.jpg
+    - assets/caption/cat.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.io/assets-and-images/#resolution-aware.

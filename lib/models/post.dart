@@ -5,19 +5,21 @@ class Post {
 
    String currentUserUid;
    String imgUrl;
-   String caption; 
+   String caption;
+   String text;
    String location; 
-   FieldValue time;
+   var time;
    String postOwnerName; 
    String postOwnerPhotoUrl;
 
-  Post({this.currentUserUid, this.imgUrl, this.caption, this.location, this.time, this.postOwnerName, this.postOwnerPhotoUrl});
+  Post({this.currentUserUid, this.imgUrl, this.caption, this.text, this.location, this.time, this.postOwnerName, this.postOwnerPhotoUrl});
 
    Map toMap(Post post) {
     var data = Map<String, dynamic>();
     data['ownerUid'] = post.currentUserUid;
     data['imgUrl'] = post.imgUrl;
     data['caption'] = post.caption;
+    data['text'] = post.text;
     data['location'] = post.location;
     data['time'] = post.time;
     data['postOwnerName'] = post.postOwnerName;
@@ -29,6 +31,7 @@ class Post {
     this.currentUserUid = mapData['ownerUid'];
     this.imgUrl = mapData['imgUrl'];
     this.caption = mapData['caption'];
+    this.text = mapData['text'];
     this.location = mapData['location'];
     this.time = mapData['time'];
     this.postOwnerName = mapData['postOwnerName'];

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:comuno/ui/comuno_games_caption_screen.dart';
 
 class ComunoGamesRulesScreen extends StatefulWidget {
 
@@ -42,7 +43,13 @@ class _ComunoGamesRulesScreenState extends State<ComunoGamesRulesScreen>  with T
   }
 
   _openGame(String game) {
-    print("tapped: ${game}");
+    print(game);
+    if (game == 'caption') {
+      Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: ((context) => ComunoGamesCaptionScreen())));
+    }
   }
 
   @override

@@ -16,6 +16,9 @@ import 'package:comuno/models/like.dart';
 import 'package:comuno/models/message.dart';
 import 'package:comuno/models/post.dart';
 import 'package:comuno/models/user.dart';
+import 'package:comuno/models/news.dart';
+import 'package:comuno/models/campaign.dart';
+
 
 String twitterToken;
 
@@ -180,7 +183,7 @@ class FirebaseProvider {
   }
 
   Future<void> addPostToDb(
-      User currentUser, String imgUrl, String caption, String location) {
+      User currentUser, String imgUrl, String caption, String text, String location) {
     CollectionReference _collectionRef = _firestore
         .collection("users")
         .document(currentUser.uid)
@@ -190,12 +193,159 @@ class FirebaseProvider {
         currentUserUid: currentUser.uid,
         imgUrl: imgUrl,
         caption: caption,
+        text: text,
         location: location,
         postOwnerName: currentUser.displayName,
         postOwnerPhotoUrl: currentUser.photoUrl,
         time: FieldValue.serverTimestamp());
 
     return _collectionRef.add(post.toMap(post));
+  }
+
+  Future<void> addCampaignToDb(
+      User currentUser,
+      String campaignImgUrl,
+      String campaignTitle,
+      String campaignDescription,
+      String campaignThankYouVideoUrl,
+      String campaignThankYouText,
+      bool jointCampaign,
+      bool nsfwContent,
+      bool campaignIsEarningBased,
+      bool campaignPaymentScheduleIsPerMonth,
+      bool campaignEarningsAreVisible
+      ) {
+    CollectionReference _collectionRef = _firestore
+        .collection("users")
+        .document(currentUser.uid)
+        .collection("campaigns");
+
+    Campaign campaign = Campaign(
+        currentUserUid: currentUser.uid,
+        campaignImgUrl: campaignImgUrl,
+        campaignTitle: campaignTitle,
+        campaignDescription: campaignDescription,
+        campaignThankYouVideoUrl: campaignThankYouVideoUrl,
+        campaignThankYouText: campaignThankYouText,
+        jointCampaign: jointCampaign,
+        nsfwContent: nsfwContent,
+        campaignIsEarningBased: campaignIsEarningBased,
+        campaignPaymentScheduleIsPerMonth: campaignPaymentScheduleIsPerMonth,
+        campaignEarningsAreVisible: campaignEarningsAreVisible,
+        campaignOwnerName: currentUser.displayName,
+        campaignOwnerPhotoUrl: currentUser.photoUrl,
+        time: FieldValue.serverTimestamp());
+
+    return _collectionRef.add(campaign.toMap(campaign));
+  }
+
+  Future<void> addSupportedCampaignToUser(
+      User currentUser,
+      String campaignImgUrl,
+      String campaignUid,
+      String campaignTitle,
+      String campaignDescription,
+      String campaignThankYouVideoUrl,
+      String campaignThankYouText,
+      bool jointCampaign,
+      bool nsfwContent,
+      bool campaignIsEarningBased,
+      bool campaignPaymentScheduleIsPerMonth,
+      bool campaignEarningsAreVisible,
+      String campaignOwnerName,
+      String campaignOwnerPhotoUrl
+      ) {
+    CollectionReference _collectionRef = _firestore
+        .collection("users")
+        .document(currentUser.uid)
+        .collection("supportedCampaigns");
+
+    Campaign campaign = Campaign(
+        currentUserUid: currentUser.uid,
+        campaignImgUrl: campaignImgUrl,
+        campaignUid: campaignUid,
+        campaignTitle: campaignTitle,
+        campaignDescription: campaignDescription,
+        campaignThankYouVideoUrl: campaignThankYouVideoUrl,
+        campaignThankYouText: campaignThankYouText,
+        jointCampaign: jointCampaign,
+        nsfwContent: nsfwContent,
+        campaignIsEarningBased: campaignIsEarningBased,
+        campaignPaymentScheduleIsPerMonth: campaignPaymentScheduleIsPerMonth,
+        campaignEarningsAreVisible: campaignEarningsAreVisible,
+        campaignOwnerName: campaignOwnerName,
+        campaignOwnerPhotoUrl: currentUser.photoUrl,
+        time: FieldValue.serverTimestamp());
+
+    return _collectionRef.add(campaign.toMap(campaign));
+  }
+
+  Future<bool> removeSupportedCampaignToUser(
+      User currentUser, String documentId
+      ) async {
+    await _firestore
+        .collection("users")
+        .document(currentUser.uid)
+        .collection("supportedCampaigns")
+        .document(documentId)
+        .delete();
+    return true;
+  }
+
+  Future<DocumentReference> saveGoogleNewsToStorage(
+      String postId, String urlToImage, String title, String publishedAt, String description
+      ) async {
+    CollectionReference _collectionRef = _firestore
+      .collection("google_news");
+
+    News news = News(
+      timestamp: new DateTime.now().millisecondsSinceEpoch,
+      postId: postId,
+      urlToImage: urlToImage,
+      title: title,
+      publishedAt: publishedAt,
+      description: description
+    );
+
+    return _collectionRef.add(news.toMap(news));
+  }
+
+  Future<DocumentReference> saveTwitterNewsToStorage(
+      String userUid, String postId, String urlToImage, String title, String publishedAt, String description
+      ) async {
+    CollectionReference _collectionRef = _firestore
+        .collection("users")
+        .document(userUid)
+        .collection("twitter_news");
+
+    News news = News(
+        timestamp: new DateTime.now().millisecondsSinceEpoch,
+        postId: postId,
+        urlToImage: urlToImage,
+        title: title,
+        publishedAt: publishedAt,
+        description: description
+    );
+
+    return _collectionRef.add(news.toMap(news));
+  }
+
+  Future<List<DocumentSnapshot>> fetchGoogleNews() async {
+    QuerySnapshot snapshot = await _firestore
+        .collection("google_news")
+        .orderBy("timestamp", descending: true)
+        .limit(20).getDocuments();
+    return snapshot.documents;
+  }
+
+  Future<List<DocumentSnapshot>> fetchTwitterNews(String userUid) async {
+    QuerySnapshot snapshot = await _firestore
+        .collection("users")
+        .document(userUid)
+        .collection("twitter_news")
+        .orderBy("timestamp", descending: true)
+        .limit(20).getDocuments();
+    return snapshot.documents;
   }
 
   Future<User> retrieveUserDetails(FirebaseUser user) async {
@@ -209,6 +359,24 @@ class FirebaseProvider {
         .collection("users")
         .document(userId)
         .collection("posts")
+        .getDocuments();
+    return querySnapshot.documents;
+  }
+
+  Future<List<DocumentSnapshot>> retrieveUserCampaigns(String userId) async {
+    QuerySnapshot querySnapshot = await _firestore
+        .collection("users")
+        .document(userId)
+        .collection("campaigns")
+        .getDocuments();
+    return querySnapshot.documents;
+  }
+
+  Future<List<DocumentSnapshot>> retrieveUserSupportedCampaigns(String userId) async {
+    QuerySnapshot querySnapshot = await _firestore
+        .collection("users")
+        .document(userId)
+        .collection("supportedCampaigns")
         .getDocuments();
     return querySnapshot.documents;
   }
@@ -372,12 +540,12 @@ class FirebaseProvider {
   }
 
   Future<void> updateDetails(
-      String uid, String name, String bio, String email, String phone) async {
+      String uid, String name, String bio, String email) async {
     Map<String, dynamic> map = Map();
     map['displayName'] = name;
     map['bio'] = bio;
     map['email'] = email;
-    map['phone'] = phone;
+//    map['phone'] = phone;
     return _firestore.collection("users").document(uid).updateData(map);
   }
 

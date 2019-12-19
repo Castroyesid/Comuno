@@ -51,6 +51,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Your camera is required</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>Your location is required</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

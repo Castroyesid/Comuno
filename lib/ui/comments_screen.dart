@@ -1,7 +1,9 @@
+//import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:comuno/models/comment.dart';
 import 'package:comuno/models/user.dart';
+import 'package:comuno/ui/comuno_profile_third_screen.dart';
 
 class CommentsScreen extends StatefulWidget {
   final DocumentReference documentReference;
@@ -16,10 +18,14 @@ class _CommentsScreenState extends State<CommentsScreen> {
   TextEditingController _commentController = TextEditingController();
   var _formKey = GlobalKey<FormState>();
 
+  bool _noComments = true;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onAfterBuild(context));
   }
+
 
   @override
   void dispose() {
@@ -27,19 +33,55 @@ class _CommentsScreenState extends State<CommentsScreen> {
     _commentController?.dispose();
   }
 
+  _onAfterBuild(BuildContext context) async {
+    _getComments();
+  }
+
+  _getComments() async {
+    QuerySnapshot snapshot = await widget.documentReference
+        .collection("comments")
+        .orderBy('timestamp', descending: false)
+        .getDocuments();
+    if (snapshot.documents.length > 0) {
+      setState(() {
+        _noComments = false;
+      });
+    } else {
+      _noComments = true;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          icon: Icon(Icons.arrow_back, color: Colors.white,),
+        ),
         elevation: 1,
         backgroundColor: Color(0xFF2AB1F3),
-        title: Text('Comments'),
+        title: Text(
+            'Comments',
+          style: TextStyle( color: Colors.white, fontWeight: FontWeight.bold),
+        ),
       ),
       body: Form(
         key: _formKey,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.max,
+          mainAxisAlignment: MainAxisAlignment.end,
           children: <Widget>[
-            commentsListWidget(),
+            !_noComments ? _commentsListWidget() :
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).size.height * 0.4),
+                  child: Text("Be first to comment..."),
+                ),
+              ),
             Divider(
               height: 20.0,
               color: Colors.grey,
@@ -78,6 +120,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                   return "";
                 },
                 controller: _commentController,
+                keyboardAppearance: Brightness.light,
                 decoration: InputDecoration(
                   hintText: "Add a comment...",
                 ),
@@ -93,9 +136,9 @@ class _CommentsScreenState extends State<CommentsScreen> {
               child: Text('Post', style: TextStyle(color: Colors.blue)),
             ),
             onTap: () {
-              if (_formKey.currentState.validate()) {
+//              if (_formKey.currentState.validate()) {
                 postComment();
-              }
+//              }
             },
           )
         ],
@@ -114,11 +157,13 @@ class _CommentsScreenState extends State<CommentsScreen> {
         .collection("comments")
         .document()
         .setData(_comment.toMap(_comment)).whenComplete(() {
+          print("comment has been posted");
+          _getComments();
           _commentController.text = "";
         });
   }
 
-  Widget commentsListWidget() {
+  Widget _commentsListWidget() {
     print("Document Ref : ${widget.documentReference.path}");
     return Flexible(
       child: StreamBuilder(
@@ -128,7 +173,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
             .snapshots(),
         builder: ((context, AsyncSnapshot<QuerySnapshot> snapshot) {
           if (!snapshot.hasData) {
-            return Center(child: CircularProgressIndicator());
+            return Container();
           } else {
             return ListView.builder(
               itemCount: snapshot.data.documents.length,
@@ -170,10 +215,21 @@ class _CommentsScreenState extends State<CommentsScreen> {
           ),
           Row(
             children: <Widget>[
-              Text(snapshot.data['ownerName'],
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                  )),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: ((context) => ComunoProfileThirdScreen(
+                            documentReference: widget.documentReference,
+                            user: widget.user,
+                          ))));
+                },
+                child: Text(snapshot.data['ownerName'],
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    )),
+              ),
               Padding(
                 padding: const EdgeInsets.only(left: 8.0),
                 child: Text(snapshot.data['comment']),
