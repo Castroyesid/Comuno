@@ -188,7 +188,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(80.0),
                                     image: DecorationImage(
-                                        image: _user.photoUrl.isEmpty
+                                        image: _user.photoUrl == null || _user.photoUrl.isEmpty
                                             ? AssetImage('assets/no_image.png')
                                             : NetworkImage(_user.photoUrl),
                                         fit: BoxFit.cover),
@@ -202,7 +202,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                           children: <Widget>[
                             Padding(
                               padding: const EdgeInsets.only(left: 25.0, top: 30.0),
-                              child: Text(_user.displayName,
+                              child: Text(_user.displayName != null ? _user.displayName : _user.email != null ? _user.email : "",
                                   style: TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -638,7 +638,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                                                           decoration: BoxDecoration(
                                                                             borderRadius: BorderRadius.circular(80.0),
                                                                             image: DecorationImage(
-                                                                                image: snapshot.data[index]['campaignImgUrl'].isEmpty
+                                                                                image: snapshot.data[index]['campaignImgUrl'] == null || snapshot.data[index]['campaignImgUrl'].isEmpty
                                                                                     ? AssetImage('assets/no_image.png')
                                                                                     : NetworkImage(snapshot.data[index]['campaignImgUrl']),
                                                                                 fit: BoxFit.cover
@@ -798,7 +798,7 @@ class _ComunoProfileScreenState extends State<ComunoProfileScreen> {
                                                                   decoration: BoxDecoration(
                                                                     borderRadius: BorderRadius.circular(80.0),
                                                                     image: DecorationImage(
-                                                                        image: snapshot.data[index]['imgUrl'].isEmpty
+                                                                        image: snapshot.data[index]['imgUrl'] == null || snapshot.data[index]['imgUrl'].isEmpty
                                                                             ? AssetImage('assets/no_image.png')
                                                                             : NetworkImage(snapshot.data[index]['imgUrl']),
                                                                         fit: BoxFit.cover

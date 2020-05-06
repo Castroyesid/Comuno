@@ -45,7 +45,7 @@ android {
         versionName flutterVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled true
-        versionCode 5
+        versionCode 6
     }
 
     signingConfigs {

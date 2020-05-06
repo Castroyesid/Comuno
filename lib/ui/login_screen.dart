@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'package:device_info/device_info.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,8 @@ import 'package:intro_views_flutter/intro_views_flutter.dart';
 import 'package:intro_views_flutter/Models/page_view_model.dart';
 
 import 'package:comuno/main.dart' as main;
+
+import 'package:apple_sign_in/apple_sign_in.dart';
 
 
 
@@ -32,6 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
   double _logoNameHeight = 55.0;
   double _inputLabelHeight = 50.0;
 
+  bool supportsAppleSignIn = false;
+
   List<dynamic> _selectedLanguages = new List<dynamic>();
 
   @override
@@ -52,7 +57,18 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  _onAfterBuild(BuildContext context) {
+  _onAfterBuild(BuildContext context) async {
+    // check for apple sign in
+    if (Platform.isIOS) {
+      var iosInfo = await DeviceInfoPlugin().iosInfo;
+      var version = iosInfo.systemVersion;
+      if (version.contains('13') == true) {
+        setState(() {
+          supportsAppleSignIn = true;
+        });
+      }
+    }
+
     _selectedLanguages.add({
       "lang_name" : "American English"
     });
@@ -323,6 +339,64 @@ class _LoginScreenState extends State<LoginScreen> {
                               });
                             },
                           ),
+                        ],
+                      ),
+                      new Padding(padding: EdgeInsets.only(top: 20)),
+                      new Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          supportsAppleSignIn ? Container(
+                            height: 50.0,
+                            width: 260.0,
+                            child: AppleSignInButton(
+                              style: ButtonStyle.whiteOutline,
+                              type: ButtonType.continueButton,
+                              onPressed: () {
+                                _repository.signInApple().then((user) {
+                                  if (user != null) {
+                                    main.loggedIn = true;
+                                    main.isGoogle = true;
+                                    main.isTwitter = false;
+                                    authenticateUser(user);
+                                  } else {
+                                    print("User canceled login with apple");
+                                  }
+                                });
+                              },
+                            ),
+                          ) : new Container(),
+//                          GestureDetector(
+//                            child: Container(
+//                              width: 260.0,
+//                              height: 50.0,
+//                              decoration: BoxDecoration(
+//                                color: Color(0xFF1DA1F2),
+//                                border: Border.all(color: Colors.white70),
+//                              ),
+//                              child: Row(
+//                                children: <Widget>[
+//                                  Image.asset('assets/Twitter_Logo_Blue.jpg'),
+//                                  Padding(
+//                                    padding: const EdgeInsets.only(left: 20.0),
+//                                    child: Text('${AppLocalizations.of(context).loginPageSignInWithTwitter ?? ""}',
+//                                        style: TextStyle(color: Colors.white, fontSize: 14.0)),
+//                                  )
+//                                ],
+//                              ),
+//                            ),
+//                            onTap: () {
+//                              _repository.signInTwitter().then((user) {
+//                                if (user != null) {
+//                                  main.loggedIn = true;
+//                                  main.isGoogle = true;
+//                                  main.isTwitter = false;
+//                                  authenticateUser(user);
+//                                } else {
+//                                  print("User canceled login with apple");
+//                                }
+//                              });
+//                            },
+//                          ),
                         ],
                       ),
                     ],

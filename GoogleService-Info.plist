@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>135159796599-5uu7dv04onfjoskgds2u2ehkr0u60mus.apps.googleusercontent.com</string>
+	<string>135159796599-5ns1qncm82d54ffvcu96i4bqo858sqhc.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.135159796599-5uu7dv04onfjoskgds2u2ehkr0u60mus</string>
+	<string>com.googleusercontent.apps.135159796599-5ns1qncm82d54ffvcu96i4bqo858sqhc</string>
 	<key>ANDROID_CLIENT_ID</key>
 	<string>135159796599-iubsn650fr0vh3rru7i3h5of9k79s557.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.comuno.comunoapp</string>
+	<string>org.comuno.comunoapp</string>
 	<key>PROJECT_ID</key>
 	<string>comuno-up-a1229</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,7 +31,7 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:135159796599:ios:12e300536c7fa8d5724772</string>
+	<string>1:135159796599:ios:05a63a8e7b32ee56724772</string>
 	<key>DATABASE_URL</key>
 	<string>https://comuno-up-a1229.firebaseio.com</string>
 </dict>

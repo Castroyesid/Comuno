@@ -29,6 +29,8 @@ dependencies:
   flutter_twitter_login:
     git: git://github.com/vudvhitech/flutter_twitter_login.git
   firebase_auth:
+  apple_sign_in:
+  device_info:
   cloud_firestore: ^0.12.9+4
   rxdart:
   image_picker:

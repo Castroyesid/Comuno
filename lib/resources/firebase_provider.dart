@@ -6,6 +6,7 @@ import 'package:comuno/resources/twitter.dart' as tw;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:apple_sign_in/apple_sign_in.dart';
 import 'package:flutter_twitter_login/flutter_twitter_login.dart';
 import 'package:comuno/util/strings.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -27,6 +28,7 @@ class FirebaseProvider {
   final Firestore _firestore = Firestore.instance;
   bool _isGoogle = false;
   bool _isTwitter = false;
+  bool _isApple = false;
   User user;
   Post post;
   Like like;
@@ -52,7 +54,7 @@ class FirebaseProvider {
 
     user = User(
         uid: currentUser.uid,
-        email: _isGoogle ? currentUser.email : "no@twitter.com",
+        email: _isGoogle || _isApple ? currentUser.email : "no@twitter.com",
         twitterUsername: _isTwitter ? _twitterUsername : "google",
         displayName: currentUser.displayName,
         photoUrl: currentUser.photoUrl,
@@ -171,6 +173,66 @@ class FirebaseProvider {
 
     return user;
 
+  }
+
+  Future<FirebaseUser> signInApple() async {
+    FirebaseUser user;
+    try {
+
+      final AuthorizationResult result = await AppleSignIn.performRequests([
+        AppleIdRequest(requestedScopes: [Scope.email, Scope.fullName])
+      ]);
+
+      switch (result.status) {
+        case AuthorizationStatus.authorized:
+          try {
+            print("successfull sign in");
+            final AppleIdCredential appleIdCredential = result.credential;
+
+            OAuthProvider oAuthProvider =
+            new OAuthProvider(providerId: "apple.com");
+            final AuthCredential credential = oAuthProvider.getCredential(
+              idToken:
+              String.fromCharCodes(appleIdCredential.identityToken),
+              accessToken:
+              String.fromCharCodes(appleIdCredential.authorizationCode),
+            );
+
+            print("trying firebase auth");
+
+            user = (await _auth.signInWithCredential(credential)).user;
+            _isApple = true;
+
+            print("signed with firebase");
+
+            FirebaseAuth.instance.currentUser().then((val) async {
+              UserUpdateInfo updateUser = UserUpdateInfo();
+              updateUser.displayName =
+              "${appleIdCredential.fullName.givenName} ${appleIdCredential.fullName.familyName}";
+              updateUser.photoUrl = "";
+              await val.updateProfile(updateUser);
+            });
+
+            return user;
+
+          } catch (e) {
+            print("error");
+            print(e.toString());
+          }
+          break;
+        case AuthorizationStatus.error:
+        // do something
+          print('Authorization error');
+          break;
+
+        case AuthorizationStatus.cancelled:
+          print('User cancelled');
+          break;
+      }
+    } catch (error) {
+      print("error with apple sign in");
+    }
+    return user;
   }
 
   Future<String> uploadImageToStorage(File imageFile) async {

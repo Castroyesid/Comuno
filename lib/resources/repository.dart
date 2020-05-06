@@ -18,6 +18,8 @@ class Repository {
 
   Future<FirebaseUser> signInTwitter() => _firebaseProvider.signInTwitter();
 
+  Future<FirebaseUser> signInApple() => _firebaseProvider.signInApple();
+
   Future<bool> authenticateUser(FirebaseUser user) => _firebaseProvider.authenticateUser(user);
 
   Future<FirebaseUser> getCurrentUser() => _firebaseProvider.getCurrentUser();
